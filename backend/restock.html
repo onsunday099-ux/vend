@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบจัดการและเติมสินค้า (Restock)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Prompt', sans-serif; }
+    body { background-color: #f1f5f9; color: #0f172a; padding: 24px 16px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #ffffff;
+      padding: 18px 24px;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      margin-bottom: 24px;
+    }
+    .title-group h1 { font-size: 20px; font-weight: 700; color: #0f172a; }
+    .title-group p { font-size: 13px; color: #64748b; margin-top: 2px; }
+
+    .btn-add-header {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 9px 18px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .btn-add-header:hover { background: #1d4ed8; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .slot-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .slot-card:hover {
+      box-shadow: 0 8px 16px -4px rgba(0,0,0,0.08);
+      transform: translateY(-2px);
+    }
+
+    .slot-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .item-label {
+      font-weight: 700;
+      font-size: 13px;
+      color: #2563eb;
+    }
+    .slot-stock-badge { font-size: 12px; font-weight: 600; color: #059669; }
+    .slot-stock-badge.empty { color: #dc2626; }
+
+    .form-group { margin-bottom: 10px; }
+    label { display: block; font-size: 12px; font-weight: 500; color: #64748b; margin-bottom: 4px; }
+    input, select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+    }
+    input:focus, select:focus { border-color: #2563eb; }
+    .row-inputs { display: flex; gap: 8px; }
+
+    .restock-section {
+      background: #f8fafc;
+      padding: 10px;
+      border-radius: 10px;
+      margin: 12px 0;
+      border: 1px dashed #cbd5e1;
+    }
+    .quick-btns { display: flex; gap: 6px; margin-top: 6px; }
+    .btn-quick {
+      flex: 1;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      padding: 4px 0;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      color: #334155;
+    }
+    .btn-quick:hover { background: #f1f5f9; }
+
+    .card-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .btn-save {
+      flex: 3;
+      padding: 10px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-save:hover { background: #1d4ed8; }
+
+    .btn-delete {
+      flex: 1;
+      padding: 10px;
+      background: #fee2e2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .btn-delete:hover { background: #dc2626; color: white; }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(2px);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-box {
+      background: white;
+      padding: 24px;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+    }
+    .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #0f172a;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      display: none;
+      z-index: 2000;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="title-group">
+        <h1>ระบบจัดการและเติมสินค้า (Restock)</h1>
+        <p>แก้ไขข้อมูลสินค้า ราคา และจำนวนสต็อกสินค้าในตู้</p>
+      </div>
+      <div>
+        <button class="btn-add-header" onclick="openAddModal()">+ เพิ่มสินค้าใหม่</button>
+      </div>
+    </header>
+
+    <div class="grid" id="slotsContainer">
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #64748b;">
+        กำลังโหลดรายการสินค้า...
+      </div>
+    </div>
+  </div>
+
+  <!-- ป็อปอัปเพิ่มสินค้า (ไม่มีช่องให้กรอกรหัส A1, A2 แล้ว) -->
+  <div id="addModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-title">+ เพิ่มสินค้าใหม่</div>
+      <div class="form-group">
+        <label>ชื่อสินค้า</label>
+        <input type="text" id="newProductName" placeholder="เช่น ชานมไข่มุก">
+      </div>
+      <div class="row-inputs">
+        <div class="form-group" style="flex:1;">
+          <label>ราคา (บาท)</label>
+          <input type="number" id="newPrice" value="25">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label>หมวดหมู่</label>
+          <select id="newCategory">
+            <option value="เครื่องดื่ม">เครื่องดื่ม</option>
+            <option value="ของว่าง">ของว่าง</option>
+            <option value="ทั่วไป">ทั่วไป</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>สต็อกเริ่มต้น (ชิ้น)</label>
+        <input type="number" id="newStock" value="15">
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 16px;">
+        <button class="btn-save" style="flex:1; background:#64748b;" onclick="closeAddModal()">ยกเลิก</button>
+        <button class="btn-save" style="flex:1;" onclick="submitAddSlot()">เพิ่มทันที</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    const BASE_URL = "http://127.0.0.1:8000";
+    let slotsData = [];
+
+    async function fetchSlots() {
+      try {
+        const res = await fetch(`${BASE_URL}/api/slots`);
+        if (!res.ok) throw new Error();
+        slotsData = await res.json();
+        renderSlots();
+      } catch (err) {
+        document.getElementById('slotsContainer').innerHTML = 
+          `<div style="grid-column: 1/-1; text-align: center; color: #ef4444; padding: 30px;">
+            ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้
+          </div>`;
+      }
+    }
+
+    function renderSlots() {
+      const container = document.getElementById('slotsContainer');
+      container.innerHTML = "";
+
+      slotsData.forEach((slot, index) => {
+        const isOutOfStock = slot.stock <= 0;
+        const card = document.createElement('div');
+        card.className = "slot-card";
+        card.innerHTML = `
+          <div class="slot-header">
+            <span class="item-label">สินค้าชิ้นที่ ${index + 1}</span>
+            <span class="slot-stock-badge ${isOutOfStock ? 'empty' : ''}">
+              ${isOutOfStock ? 'สินค้าหมด' : `คงเหลือ ${slot.stock} ชิ้น`}
+            </span>
+          </div>
+
+          <div class="form-group">
+            <label>ชื่อสินค้า</label>
+            <input type="text" id="name-${slot.slot_id}" value="${slot.product_name}">
+          </div>
+
+          <div class="row-inputs">
+            <div class="form-group" style="flex: 1;">
+              <label>ราคา (บาท)</label>
+              <input type="number" id="price-${slot.slot_id}" value="${slot.price}">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label>หมวดหมู่</label>
+              <select id="cat-${slot.slot_id}">
+                <option value="เครื่องดื่ม" ${slot.category.includes('เครื่องดื่ม') ? 'selected' : ''}>เครื่องดื่ม</option>
+                <option value="ของว่าง" ${slot.category.includes('ของว่าง') ? 'selected' : ''}>ของว่าง</option>
+                <option value="ทั่วไป" ${!slot.category.includes('เครื่องดื่ม') && !slot.category.includes('ของว่าง') ? 'selected' : ''}>ทั่วไป</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="restock-section">
+            <label>จำนวนสต็อกปัจจุบัน</label>
+            <input type="number" id="stock-${slot.slot_id}" value="${slot.stock}">
+            <div class="quick-btns">
+              <button class="btn-quick" onclick="addStock(${slot.slot_id}, 1)">+1</button>
+              <button class="btn-quick" onclick="addStock(${slot.slot_id}, 5)">+5</button>
+              <button class="btn-quick" onclick="addStock(${slot.slot_id}, 10)">+10</button>
+              <button class="btn-quick" onclick="setStock(${slot.slot_id}, 15)">เต็มตู้ (15)</button>
+            </div>
+          </div>
+
+          <div class="card-actions">
+            <button class="btn-save" onclick="saveSlot(${slot.slot_id})">บันทึกการเปลี่ยนแปลง</button>
+            <button class="btn-delete" onclick="deleteSlot(${slot.slot_id})">ลบ</button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function addStock(slotId, amount) {
+      const input = document.getElementById(`stock-${slotId}`);
+      input.value = parseInt(input.value || 0) + amount;
+    }
+
+    function setStock(slotId, target) {
+      document.getElementById(`stock-${slotId}`).value = target;
+    }
+
+    async function saveSlot(slotId) {
+      const payload = {
+        product_name: document.getElementById(`name-${slotId}`).value,
+        price: parseFloat(document.getElementById(`price-${slotId}`).value),
+        category: document.getElementById(`cat-${slotId}`).value,
+        stock: parseInt(document.getElementById(`stock-${slotId}`).value)
+      };
+
+      try {
+        const res = await fetch(`${BASE_URL}/api/slots/${slotId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error();
+        showToast("บันทึกการเปลี่ยนแปลงเรียบร้อย");
+        fetchSlots();
+      } catch (e) {
+        showToast("บันทึกไม่สำเร็จ", true);
+      }
+    }
+
+    async function deleteSlot(slotId) {
+      if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบสินค้ารายการนี้?")) return;
+
+      try {
+        const res = await fetch(`${BASE_URL}/api/slots/${slotId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error();
+        showToast("ลบสินค้าเรียบร้อย");
+        fetchSlots();
+      } catch (e) {
+        showToast("ลบไม่สำเร็จ", true);
+      }
+    }
+
+    function openAddModal() {
+      document.getElementById('addModal').style.display = 'flex';
+    }
+
+    function closeAddModal() {
+      document.getElementById('addModal').style.display = 'none';
+    }
+
+    async function submitAddSlot() {
+      const productName = document.getElementById('newProductName').value.trim();
+      const price = parseFloat(document.getElementById('newPrice').value);
+      const category = document.getElementById('newCategory').value;
+      const stock = parseInt(document.getElementById('newStock').value);
+
+      if (!productName) {
+        alert("กรุณากรอกชื่อสินค้า");
+        return;
+      }
+
+      try {
+        const res = await fetch(`${BASE_URL}/api/slots`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product_name: productName, price, category, stock })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "เกิดข้อผิดพลาด");
+        showToast("เพิ่มสินค้าสำเร็จ");
+        closeAddModal();
+        document.getElementById('newProductName').value = '';
+        fetchSlots();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.style.background = isError ? '#dc2626' : '#059669';
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 2500);
+    }
+
+    fetchSlots();
+  </script>
+</body>
+</html>
