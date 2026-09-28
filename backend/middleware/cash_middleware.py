@@ -1,54 +1,101 @@
-import os
-import json
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import urllib.parse
+import uvicorn
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SIMULATOR_HTML = os.path.join(BASE_DIR, "cash_simulator.html")
+app = FastAPI(title="Cash Middleware (No Tube Inventory)")
 
-class DummyCashManager:
-    def get_status(self):
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class CashSession:
+    def __init__(self):
+        self.is_active: bool = False
+        self.order_no: str = ""
+        self.amount_due: int = 0
+        self.amount_inserted: int = 0
+
+    def start(self, order_no: str, amount_due: int):
+        self.is_active = True
+        self.order_no = order_no
+        self.amount_due = amount_due
+        self.amount_inserted = 0
+
+    def insert(self, amount: int) -> int:
+        if not self.is_active:
+            raise ValueError("ไม่มี Session ที่เปิดอยู่")
+        self.amount_inserted += amount
+        return self.amount_inserted
+
+    def get_change(self) -> int:
+        if not self.is_active or self.amount_inserted < self.amount_due:
+            return 0
+        return self.amount_inserted - self.amount_due
+
+    def reset(self):
+        self.is_active = False
+        self.order_no = ""
+        self.amount_due = 0
+        self.amount_inserted = 0
+
+session = CashSession()
+
+class StartRequest(BaseModel):
+    order_no: str
+    amount_due: int
+
+class InsertRequest(BaseModel):
+    amount: int
+
+@app.post("/api/middleware/cash/session/start")
+def start_session(req: StartRequest):
+    session.start(req.order_no, req.amount_due)
+    return {"status": "STARTED", "order_no": session.order_no, "amount_due": session.amount_due}
+
+@app.post("/api/middleware/cash/insert")
+def insert_money(req: InsertRequest):
+    try:
+        total = session.insert(req.amount)
+        change = session.get_change()
         return {
-            "current_session": None,
-            "inventory": {
-                "coins_in_tubes": {10: 50, 5: 50, 2: 50, 1: 100},
-                "total_change_available": 950,
-                "cash_box_total": 0
-            }
+            "status": "INSERTED",
+            "inserted": req.amount,
+            "total_inserted": total,
+            "amount_due": session.amount_due,
+            "change_due": change,
+            "is_completed": total >= session.amount_due,
         }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-cash_manager = DummyCashManager()
+@app.get("/api/middleware/cash/status")
+def get_status():
+    return {
+        "is_active": session.is_active,
+        "order_no": session.order_no,
+        "amount_due": session.amount_due,
+        "amount_inserted": session.amount_inserted,
+        "change_due": session.get_change(),
+        "is_completed": (session.amount_inserted >= session.amount_due) if session.is_active else False,
+    }
 
-class MiddlewareRequestHandler(BaseHTTPRequestHandler):
-    def _send_json(self, status_code, data):
-        self.send_response(status_code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode("utf-8"))
+@app.post("/api/middleware/cash/dispense")
+def dispense_change():
+    """ทอนเงินตามยอดจริงโดยไม่ต้องตรวจ Tube"""
+    change = session.get_change()
+    session.reset()
+    return {"status": "SUCCESS", "dispensed_change": change}
 
-    def do_GET(self):
-        parsed = urllib.parse.urlparse(self.path)
-        if parsed.path in ["/", "/simulator", "/simulator.html"]:
-            if os.path.exists(SIMULATOR_HTML):
-                with open(SIMULATOR_HTML, "r", encoding="utf-8") as f:
-                    content = f.read()
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(content.encode("utf-8"))
-            else:
-                self.send_response(404)
-                self.end_headers()
-                self.wfile.write(b"cash_simulator.html not found.")
-        elif parsed.path == "/api/middleware/cash/status":
-            self._send_json(200, cash_manager.get_status())
-        else:
-            self._send_json(404, {"error": "Not Found"})
+@app.post("/api/middleware/cash/cancel")
+def cancel_session():
+    refund = session.amount_inserted
+    session.reset()
+    return {"status": "CANCELLED", "refund_amount": refund}
 
 if __name__ == "__main__":
-    PORT = 8080
-    server_address = ("", PORT)
-    httpd = HTTPServer(server_address, MiddlewareRequestHandler)
-    print(f"Starting Cash Middleware on http://localhost:{PORT}")
-    httpd.serve_forever()
+    uvicorn.run(app, host="127.0.0.1", port=8080)
