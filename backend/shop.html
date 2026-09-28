@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ตู้จำหน่ายสินค้า</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Prompt', sans-serif; }
+  body { background: #f1f5f9; color: #0f172a; min-height: 100vh; }
+  header { background: #2563eb; color: #fff; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 18px; }
+  header a { color: #fff; font-size: 13px; text-decoration: none; opacity: .85; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+  .item { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; cursor: pointer; transition: .15s; text-align: center; }
+  .item:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.08); border-color: #2563eb; }
+  .item.out { opacity: .45; cursor: not-allowed; }
+  .item.out:hover { transform: none; box-shadow: none; border-color: #e2e8f0; }
+  .code { display: inline-block; background: #eff6ff; color: #2563eb; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 20px; }
+  .item .name { font-size: 16px; font-weight: 600; margin: 10px 0 4px; }
+  .item .cat { font-size: 12px; color: #64748b; }
+  .item .price { font-size: 20px; font-weight: 700; color: #2563eb; margin-top: 8px; }
+  .item .stock { font-size: 12px; color: #059669; margin-top: 4px; }
+  .item.out .stock { color: #e11d48; }
+  .empty { text-align: center; color: #64748b; padding: 40px; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  .overlay.show { display: flex; }
+  .modal { background: #fff; border-radius: 20px; width: 100%; max-width: 420px; padding: 26px; max-height: 92vh; overflow-y: auto; }
+  .modal h2 { font-size: 18px; text-align: center; margin-bottom: 4px; }
+  .sub { text-align: center; color: #64748b; font-size: 14px; margin-bottom: 18px; }
+  .amount { text-align: center; font-size: 30px; font-weight: 700; color: #2563eb; margin-bottom: 18px; }
+  .pay-btn { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 10px; background: #fff; border: 1.5px solid #cbd5e1; border-radius: 14px; font-size: 16px; font-weight: 600; cursor: pointer; text-align: left; }
+  .pay-btn:hover { border-color: #2563eb; background: #eff6ff; }
+  .pay-btn span.ic { font-size: 24px; }
+  .btn-cancel { width: 100%; padding: 12px; margin-top: 6px; background: #fff1f2; border: 1px solid #fecdd3; color: #e11d48; border-radius: 12px; font-weight: 600; font-size: 15px; cursor: pointer; font-family: inherit; }
+  .btn-cancel:hover { background: #ffe4e6; }
+  .btn-main { width: 100%; padding: 12px; margin-top: 6px; background: #2563eb; border: none; color: #fff; border-radius: 12px; font-weight: 600; font-size: 15px; cursor: pointer; font-family: inherit; }
+  .btn-main:hover { background: #1d4ed8; }
+  .btn-ghost { width: 100%; padding: 10px; margin-top: 10px; background: #f1f5f9; border: 1px dashed #94a3b8; color: #475569; border-radius: 12px; font-size: 13px; cursor: pointer; font-family: inherit; }
+  .panel { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+  .row { display: flex; justify-content: space-between; font-size: 14px; color: #64748b; margin-bottom: 8px; }
+  .row:last-child { margin-bottom: 0; }
+  .row strong { color: #0f172a; font-size: 16px; }
+  .label { font-size: 12px; font-weight: 600; color: #94a3b8; margin: 10px 0 8px; }
+  .coins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .coins button { padding: 10px 0; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .coins button:hover { background: #f1f5f9; border-color: #94a3b8; }
+  #qrBox { display: flex; justify-content: center; margin: 6px 0 12px; }
+  #qrBox img, #qrBox canvas { border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px; background: #fff; }
+  .err { color: #e11d48; font-size: 13px; text-align: center; margin-top: 8px; min-height: 18px; }
+  .ok-icon { font-size: 54px; text-align: center; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ตู้จำหน่ายสินค้า</h1>
+  <a href="/">← หน้าหลัก</a>
+</header>
+<div class="wrap">
+  <div class="grid" id="grid"><div class="empty">กำลังโหลดสินค้า...</div></div>
+</div>
+
+<!-- Popup -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+
+    <!-- 1) เลือกช่องทางชำระเงิน -->
+    <div id="vChoose" class="hidden">
+      <h2 id="cName">สินค้า</h2>
+      <div class="sub">เลือกช่องทางชำระเงิน</div>
+      <div class="amount" id="cPrice">฿0</div>
+      <button class="pay-btn" onclick="checkout('cash')"><span class="ic">💵</span>เงินสด</button>
+      <button class="pay-btn" onclick="checkout('promptpay_qr')"><span class="ic">📱</span>สแกน QR (PromptPay)</button>
+      <div class="err" id="cErr"></div>
+      <button class="btn-cancel" onclick="closeModal()">ยกเลิก</button>
+    </div>
+
+    <!-- 2) เงินสด -->
+    <div id="vCash" class="hidden">
+      <h2>ชำระด้วยเงินสด</h2>
+      <div class="sub" id="cashItem"></div>
+      <div class="panel">
+        <div class="row"><span>ยอดที่ต้องชำระ</span><strong id="cashDue">฿0</strong></div>
+        <div class="row"><span>หยอดแล้ว</span><strong id="cashIn" style="color:#2563eb">฿0</strong></div>
+        <div class="row"><span>เงินทอน</span><strong id="cashChange" style="color:#10b981">฿0</strong></div>
+      </div>
+      <div class="label">หยอดเหรียญ</div>
+      <div class="coins">
+        <button onclick="insertCash(1)">1฿</button><button onclick="insertCash(2)">2฿</button>
+        <button onclick="insertCash(5)">5฿</button><button onclick="insertCash(10)">10฿</button>
+      </div>
+      <div class="label">สอดธนบัตร</div>
+      <div class="coins">
+        <button onclick="insertCash(20)">20฿</button><button onclick="insertCash(50)">50฿</button>
+        <button onclick="insertCash(100)">100฿</button><button onclick="insertCash(500)">500฿</button>
+      </div>
+      <div class="err" id="cashErr"></div>
+      <button class="btn-cancel" onclick="cancelOrder()">ยกเลิกและคืนเงิน</button>
+    </div>
+
+    <!-- 3) QR -->
+    <div id="vQr" class="hidden">
+      <h2>สแกนเพื่อชำระเงิน</h2>
+      <div class="sub" id="qrItem"></div>
+      <div class="amount" id="qrAmount">฿0</div>
+      <div id="qrBox"></div>
+      <div class="sub" style="margin-bottom:6px">PromptPay · ออเดอร์ <span id="qrOrder"></span></div>
+      <button class="btn-ghost" onclick="confirmQr()">จำลองว่าชำระเงินแล้ว (สำหรับทดสอบ)</button>
+      <div class="err" id="qrErr"></div>
+      <button class="btn-cancel" onclick="cancelOrder()">ยกเลิก</button>
+    </div>
+
+    <!-- 4) สำเร็จ -->
+    <div id="vDone" class="hidden">
+      <div class="ok-icon">✅</div>
+      <h2 style="margin-top:8px">ชำระเงินสำเร็จ</h2>
+      <div class="sub" id="doneMsg"></div>
+      <button class="btn-main" onclick="closeModal()">ตกลง</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const BASE = location.origin;
+const MW = "http://127.0.0.1:8080/api/middleware/cash";
+let slots = [], selected = null, order = null, pollTimer = null, completing = false;
+
+const $ = id => document.getElementById(id);
+const baht = n => "฿" + Number(n).toLocaleString("th-TH", { maximumFractionDigits: 2 });
+const views = ["vChoose", "vCash", "vQr", "vDone"];
+function show(v) { views.forEach(x => $(x).classList.toggle("hidden", x !== v)); }
+
+/* ---------- สินค้า ---------- */
+function render() {
+  const g = $("grid");
+  if (!slots.length) { g.innerHTML = '<div class="empty">ยังไม่มีสินค้าในตู้</div>'; return; }
+  g.innerHTML = "";
+  slots.forEach(s => {
+    const out = s.current_stock <= 0;
+    const d = document.createElement("div");
+    d.className = "item" + (out ? " out" : "");
+    d.innerHTML = `<span class="code">ช่อง ${s.slot_code}</span>
+      <div class="name"></div><div class="cat"></div>
+      <div class="price">${baht(s.price)}</div>
+      <div class="stock">${out ? "สินค้าหมด" : "เหลือ " + s.current_stock + " ชิ้น"}</div>`;
+    d.querySelector(".name").textContent = s.product_name;
+    d.querySelector(".cat").textContent = s.category;
+    if (!out) d.onclick = () => openChoose(s);
+    g.appendChild(d);
+  });
+}
+async function loadSlots() {
+  try { slots = await (await fetch(`${BASE}/api/slots`)).json(); render(); }
+  catch (e) { $("grid").innerHTML = '<div class="empty">โหลดสินค้าไม่สำเร็จ</div>'; }
+}
+function connectWS() {
+  const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/stock");
+  ws.onmessage = e => { const d = JSON.parse(e.data); if (d.type === "stock_update") { slots = d.slots; render(); } };
+  ws.onclose = () => setTimeout(connectWS, 2000);
+}
+
+/* ---------- popup ---------- */
+function openChoose(s) {
+  selected = s; order = null;
+  $("cName").textContent = s.product_name;
+  $("cPrice").textContent = baht(s.price);
+  $("cErr").textContent = "";
+  show("vChoose");
+  $("overlay").classList.add("show");
+}
+function closeModal() {
+  stopPoll();
+  $("overlay").classList.remove("show");
+  selected = null; order = null; completing = false;
+}
+function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+async function checkout(method) {
+  $("cErr").textContent = "";
+  try {
+    const res = await fetch(`${BASE}/api/orders/checkout`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: [{ slot_id: selected.slot_id, qty: 1 }], payment_method: method })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "สร้างออเดอร์ไม่สำเร็จ");
+    order = data;
+    method === "cash" ? showCash() : showQr();
+  } catch (e) { $("cErr").textContent = e.message; }
+}
+
+/* ---------- เงินสด ---------- */
+function showCash() {
+  $("cashItem").textContent = `${selected.product_name} · ออเดอร์ ${order.order_no}`;
+  $("cashDue").textContent = baht(order.amount);
+  $("cashIn").textContent = "฿0"; $("cashChange").textContent = "฿0"; $("cashErr").textContent = "";
+  show("vCash");
+  stopPoll(); completing = false;
+  pollTimer = setInterval(pollCash, 1000);
+}
+async function insertCash(amount) {
+  try {
+    const r = await fetch(`${MW}/insert`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount }) });
+    if (!r.ok) throw new Error();
+    pollCash();
+  } catch (e) { $("cashErr").textContent = "หยอดเงินไม่สำเร็จ (ตรวจสอบว่า Cash Middleware พอร์ต 8080 ทำงานอยู่)"; }
+}
+async function pollCash() {
+  if (!order || completing) return;
+  try {
+    const d = await (await fetch(`${BASE}/api/orders/cash/status`)).json();
+    if (d.middleware_offline) { $("cashErr").textContent = "เชื่อมต่อ Cash Middleware ไม่ได้"; return; }
+    $("cashErr").textContent = "";
+    $("cashIn").textContent = baht(d.amount_inserted);
+    $("cashChange").textContent = baht(d.change_due);
+    if (d.is_active && d.order_no === order.order_no && d.is_completed) {
+      completing = true; stopPoll();
+      const r = await fetch(`${BASE}/api/orders/cash/complete?order_no=${order.order_no}`, { method: "POST" });
+      if (!r.ok) { completing = false; pollTimer = setInterval(pollCash, 1000); $("cashErr").textContent = "ปิดออเดอร์ไม่สำเร็จ"; return; }
+      const change = (await r.json()).detail?.dispensed_change ?? d.change_due;
+      $("doneMsg").textContent = change > 0 ? `กรุณารับสินค้าและเงินทอน ${baht(change)}` : "กรุณารับสินค้าของคุณ";
+      show("vDone");
+    }
+  } catch (e) {}
+}
+
+/* ---------- QR ---------- */
+function showQr() {
+  $("qrItem").textContent = selected.product_name;
+  $("qrAmount").textContent = baht(order.amount);
+  $("qrOrder").textContent = order.order_no; $("qrErr").textContent = "";
+  $("qrBox").innerHTML = "";
+  new QRCode($("qrBox"), { text: order.qr_payload, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+  show("vQr");
+}
+async function confirmQr() {
+  try {
+    const r = await fetch(`${BASE}/api/orders/${order.order_no}/confirm-qr`, { method: "POST" });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    $("doneMsg").textContent = "กรุณารับสินค้าของคุณ";
+    show("vDone");
+  } catch (e) { $("qrErr").textContent = e.message || "ยืนยันไม่สำเร็จ"; }
+}
+
+/* ---------- ยกเลิก (คืนสต็อก / คืนเงิน) ---------- */
+async function cancelOrder() {
+  if (!order) return closeModal();
+  const cash = order.payment_method === "cash";
+  try {
+    const r = await fetch(`${BASE}/api/orders/${order.order_no}/cancel`, { method: "POST" });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail);
+    if (cash && d.refund_amount > 0) alert(`คืนเงิน ${baht(d.refund_amount)}`);
+    closeModal();
+  } catch (e) { (cash ? $("cashErr") : $("qrErr")).textContent = e.message || "ยกเลิกไม่สำเร็จ"; }
+}
+
+loadSlots(); connectWS();
+</script>
+</body>
+</html>

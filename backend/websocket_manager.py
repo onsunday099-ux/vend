@@ -1,24 +1,61 @@
-from fastapi import WebSocket
-from typing import Dict, List
+import json
+from typing import List
 
+from fastapi import WebSocket
+from sqlalchemy.orm import Session
+
+from models import MachineSlot
+
+# --- ระบบแจ้งเตือนสต็อกแบบเรียลไทม์ผ่าน WebSocket ---
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: Dict[str, List[WebSocket]] = {}
+        self.active: List[WebSocket] = []
 
-    async def connect(self, order_id: str, websocket: WebSocket):
-        await websocket.accept()
-        if order_id not in self.active_connections:
-            self.active_connections[order_id] = []
-        self.active_connections[order_id].append(websocket)
+    async def connect(self, ws: WebSocket):
+        await ws.accept()
+        self.active.append(ws)
 
-    def disconnect(self, order_id: str, websocket: WebSocket):
-        if order_id in self.active_connections:
-            self.active_connections[order_id].remove(websocket)
+    def disconnect(self, ws: WebSocket):
+        if ws in self.active:
+            self.active.remove(ws)
 
-    async def broadcast_status(self, order_id: str, status: str, extra: dict = None):
-        if order_id in self.active_connections:
-            payload = {"order_id": order_id, "status": status, **(extra or {})}
-            for ws in self.active_connections[order_id]:
-                await ws.send_json(payload)
+    async def broadcast_json(self, payload: dict):
+        dead = []
+        for ws in self.active:
+            try:
+                await ws.send_text(json.dumps(payload, ensure_ascii=False))
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(ws)
 
-ws_manager = ConnectionManager()
+manager = ConnectionManager()
+
+def _slots_payload(db: Session) -> dict:
+    slots = db.query(MachineSlot).all()
+    return {
+        "type": "stock_update",
+        "slots": [
+            {
+                "slot_id": s.id,
+                "machine_code": s.machine_code,
+                "slot_code": s.slot_code,
+                "product_name": s.product.name,
+                "category": s.product.category,
+                "price": s.product.price,
+                "description": s.product.description,
+                "current_stock": s.current_stock,
+                "image_url": s.product.image_url,
+            }
+            for s in slots
+        ],
+    }
+
+async def broadcast_stock(db: Session):
+    await manager.broadcast_json(_slots_payload(db))
+
+
+
+
+
+

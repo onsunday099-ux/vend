@@ -27,6 +27,16 @@ def root():
     return FileResponse(os.path.join(BASE_DIR, "index.html"))
 
 
+@app.get("/shop")
+def shop_page():
+    return FileResponse(os.path.join(BASE_DIR, "shop.html"))
+
+
+@app.get("/cash-simulator")
+def cash_simulator_page():
+    return FileResponse(os.path.join(BASE_DIR, "middleware", "cash_simulator.html"))
+
+
 @app.get("/restock")
 def restock_page():
     return FileResponse(os.path.join(BASE_DIR, "restock.html"))

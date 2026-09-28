@@ -8,22 +8,24 @@ class VendingConsolePanel extends StatelessWidget {
   final List<CartItemModel> cart;
   final String paymentMethod;
   final Function(String) onSelectPaymentMethod;
-  final OrderModel? activeOrder;
   final bool isCreatingOrder;
+  final OrderModel? activeOrder;
+  final double enteredAmount;
   final VoidCallback onCheckout;
-  final VoidCallback onConfirmPaid;
   final VoidCallback onClearCart;
+  final VoidCallback onCancelOrder;
 
   const VendingConsolePanel({
     super.key,
     required this.cart,
     required this.paymentMethod,
     required this.onSelectPaymentMethod,
-    required this.activeOrder,
     required this.isCreatingOrder,
+    required this.activeOrder,
+    required this.enteredAmount,
     required this.onCheckout,
-    required this.onConfirmPaid,
     required this.onClearCart,
+    required this.onCancelOrder,
   });
 
   double get totalAmount => cart.fold(0, (sum, i) => sum + i.totalPrice);
@@ -35,54 +37,99 @@ class VendingConsolePanel extends StatelessWidget {
       );
     }
 
-    if (paymentMethod == 'qr' && activeOrder != null && activeOrder!.qrPayload != null) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.cardBorder),
+    if (activeOrder != null) {
+      if (activeOrder!.isCash) {
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              "ยอดที่ต้องชำระ",
+              style: TextStyle(fontSize: 11, color: AppColors.textDark, fontWeight: FontWeight.bold),
             ),
-            child: QrImageView(
-              data: activeOrder!.qrPayload!,
-              size: 115,
-              padding: EdgeInsets.zero,
+            Text(
+              "฿${activeOrder!.amount.toStringAsFixed(0)}",
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.primary),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            "สแกนจ่าย ฿${activeOrder!.amount.toStringAsFixed(0)}",
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                "ใส่เงินแล้ว: ฿${enteredAmount.toStringAsFixed(0)}",
+                style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
+              ),
             ),
-          ),
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            height: 36,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.onlineGreen,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              height: 36,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: onCancelOrder,
+                child: const Text(
+                  "ยกเลิกรายการ",
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
-              onPressed: onConfirmPaid,
-              child: const Text(
-                "ยืนยันรับสินค้า",
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+          ],
+        );
+      } else {
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (activeOrder!.qrPayload != null)
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.cardBorder),
+                ),
+                child: QrImageView(
+                  data: activeOrder!.qrPayload!,
+                  size: 100,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            const SizedBox(height: 8),
+            Text(
+              "สแกนจ่าย ฿${activeOrder!.amount.toStringAsFixed(0)}",
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
+            ),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              height: 36,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: onCancelOrder,
+                child: const Text(
+                  "ยกเลิกรายการ",
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
-          ),
-        ],
-      );
+          ],
+        );
+      }
     }
 
     if (paymentMethod == 'cash') {
@@ -195,7 +242,6 @@ class VendingConsolePanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Digital Cart Display
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
@@ -233,8 +279,6 @@ class VendingConsolePanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-
-          // รายการสินค้าในตะกร้า (แสดงเฉพาะชื่อสินค้า ไม่เอา #)
           Container(
             height: 115,
             padding: const EdgeInsets.all(8),
@@ -260,11 +304,11 @@ class VendingConsolePanel extends StatelessWidget {
                             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                           ),
                           GestureDetector(
-                            onTap: onClearCart,
-                            child: const Text(
+                            onTap: activeOrder == null ? onClearCart : null,
+                            child: Text(
                               "ล้าง",
                               style: TextStyle(
-                                color: Colors.redAccent,
+                                color: activeOrder == null ? Colors.redAccent : Colors.grey,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -314,8 +358,6 @@ class VendingConsolePanel extends StatelessWidget {
                   ),
           ),
           const SizedBox(height: 12),
-
-          // 2. แถบเลือกวิธีจ่ายเงิน
           const Text(
             "เลือกวิธีชำระเงิน",
             style: TextStyle(color: AppColors.textDark, fontSize: 11, fontWeight: FontWeight.bold),
@@ -325,7 +367,7 @@ class VendingConsolePanel extends StatelessWidget {
             children: [
               Expanded(
                 child: InkWell(
-                  onTap: () => onSelectPaymentMethod('cash'),
+                  onTap: activeOrder == null ? () => onSelectPaymentMethod('cash') : null,
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -361,7 +403,7 @@ class VendingConsolePanel extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: InkWell(
-                  onTap: () => onSelectPaymentMethod('qr'),
+                  onTap: activeOrder == null ? () => onSelectPaymentMethod('qr') : null,
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -397,8 +439,6 @@ class VendingConsolePanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-
-          // 3. QR Area & Payment Area
           Expanded(
             child: Container(
               padding: const EdgeInsets.all(10),
@@ -411,8 +451,6 @@ class VendingConsolePanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-
-          // 4. ขั้นตอนการซื้อ
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
