@@ -1,97 +1,89 @@
-from typing import List
-
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
-from config import MACHINE_CODE
+from typing import List
 from database import get_db
-from models import Product, MachineSlot, Order, OrderItem, Payment
-from schemas import SlotCreate, SlotUpdate, SlotOut
-from websocket_manager import broadcast_stock
+from models import Product, MachineSlot
+from schemas import SlotCreate, SlotUpdate
 
-router = APIRouter()
+router = APIRouter(prefix="/api/slots", tags=["Slots"])
 
-
-@router.get("/api/slots", response_model=List[SlotOut])
+@router.get("")
 def get_slots(db: Session = Depends(get_db)):
     slots = db.query(MachineSlot).all()
-    return [
-        SlotOut(
-            slot_id=s.id,
-            machine_code=s.machine_code,
-            slot_code=s.slot_code,
-            product_name=s.product.name,
-            category=s.product.category,
-            price=s.product.price,
-            description=s.product.description or "",
-            current_stock=s.current_stock,
-            image_url=s.product.image_url
-        ) for s in slots
-    ]
+    result = []
+    for s in slots:
+        result.append({
+            "slot_id": str(s.id),
+            "slot_code": s.slot_code,
+            "product_name": s.product.name if s.product else "ว่าง",
+            "price": s.product.price if s.product else 0.0,
+            "category": s.product.category if s.product else "ทั่วไป",
+            "current_stock": s.current_stock,
+            "max_capacity": s.capacity,
+            "image_url": s.product.image_url if (s.product and s.product.image_url) else "",
+            "status": s.status
+        })
+    return result
 
-# เพิ่มสินค้าใหม่ (รันหมายเลขให้อัตโนมัติ)
-@router.post("/api/slots")
-async def add_slot(data: SlotCreate, db: Session = Depends(get_db)):
-    max_slot = db.query(MachineSlot).count() + 1
-    new_code = str(max_slot)
+@router.put("/{slot_id}")
+def update_slot(slot_id: int, data: SlotUpdate, db: Session = Depends(get_db)):
+    slot = db.query(MachineSlot).filter(MachineSlot.id == slot_id).first()
+    if not slot:
+        raise HTTPException(status_code=404, detail="ไม่พบช่องสินค้านี้")
 
-    prod = Product(
-        name=data.product_name,
-        category=data.category,
-        price=data.price,
-        image_url="",
-        description=data.description,
-    )
-    db.add(prod)
+    slot.current_stock = data.current_stock
+
+    if slot.product:
+        slot.product.name = data.product_name
+        slot.product.price = data.price
+        slot.product.category = data.category
+        if data.image_url is not None:
+            slot.product.image_url = data.image_url
+    else:
+        new_prod = Product(
+            name=data.product_name,
+            price=data.price,
+            category=data.category,
+            image_url=data.image_url or ""
+        )
+        db.add(new_prod)
+        db.flush()
+        slot.product_id = new_prod.id
+
     db.commit()
-    db.refresh(prod)
+    return {"status": "success", "message": "อัปเดตข้อมูลสำเร็จ"}
 
-    slot = MachineSlot(machine_code=MACHINE_CODE, slot_code=new_code, product_id=prod.id, current_stock=data.current_stock)
+@router.post("")
+def add_slot(data: SlotCreate, db: Session = Depends(get_db)):
+    # สร้างรหัส Slot อัตโนมัติ เช่น S1, S2, ...
+    count = db.query(MachineSlot).count()
+    new_slot_code = f"S{count + 1}"
+
+    product = Product(
+        name=data.product_name,
+        price=data.price,
+        category=data.category,
+        image_url=data.image_url or "",
+        description=data.description or ""
+    )
+    db.add(product)
+    db.flush()
+
+    slot = MachineSlot(
+        slot_code=new_slot_code,
+        product_id=product.id,
+        current_stock=data.current_stock,
+        capacity=data.capacity
+    )
     db.add(slot)
     db.commit()
-    await broadcast_stock(db)
-    return {"status": "success", "message": f"เพิ่มรายการสินค้า {data.product_name} เรียบร้อย"}
+    return {"status": "success", "slot_code": new_slot_code}
 
-@router.put("/api/slots/{slot_id}")
-async def update_slot(slot_id: int, data: SlotUpdate, db: Session = Depends(get_db)):
-    slot = db.get(MachineSlot, slot_id)
+@router.delete("/{slot_id}")
+def delete_slot(slot_id: int, db: Session = Depends(get_db)):
+    slot = db.query(MachineSlot).filter(MachineSlot.id == slot_id).first()
     if not slot:
-        raise HTTPException(status_code=404, detail="Slot not found")
-    
-    slot.current_stock = data.current_stock
-    slot.product.name = data.product_name
-    slot.product.price = data.price
-    slot.product.category = data.category
-    if data.image_url is not None:
-        slot.product.image_url = data.image_url  # <-- เพิ่มบันทึกรูป
-    
-    db.commit()
-    await broadcast_stock(db)
-    return {"status": "success", "message": "Updated successfully"}
-
-@router.delete("/api/slots/{slot_id}")
-async def delete_slot(slot_id: int, db: Session = Depends(get_db)):
-    slot = db.get(MachineSlot, slot_id)
-    if not slot:
-        raise HTTPException(status_code=404, detail="ไม่พบรายการนี้")
-
-    orders = db.query(Order).filter(Order.slot_id == slot_id).all()
-    for o in orders:
-        db.query(Payment).filter(Payment.order_id == o.id).delete()
-        db.query(OrderItem).filter(OrderItem.order_id == o.id).delete()
-    db.query(OrderItem).filter(OrderItem.slot_id == slot_id).delete()
-    db.query(Order).filter(Order.slot_id == slot_id).delete()
-
+        raise HTTPException(status_code=404, detail="ไม่พบช่องสินค้า")
     db.delete(slot)
     db.commit()
-    await broadcast_stock(db)
-    return {"status": "success", "message": "ลบรายการสินค้าสำเร็จ"}
-
-@router.post("/api/slots/restock-all")
-async def restock_all(target_stock: int = 15, db: Session = Depends(get_db)):
-    slots = db.query(MachineSlot).all()
-    for s in slots:
-        s.current_stock = target_stock
-    db.commit()
-    await broadcast_stock(db)
-    return {"status": "success", "message": f"เติมสต็อกทุกรายการเป็น {target_stock} ชิ้นเรียบร้อย"}
+    return {"status": "success", "message": "ลบสำเร็จ"}

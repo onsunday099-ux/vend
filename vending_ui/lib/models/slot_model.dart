@@ -8,6 +8,7 @@ class SlotModel {
   final String status;
   final DateTime lastUpdated;
   final String? imageUrl; // <-- เพิ่มฟิลด์ imageUrl
+  String get slotCode => slotId;
 
   SlotModel({
     required this.slotId,

@@ -2,24 +2,29 @@ from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 
-# --- SLOT SCHEMAS ---
-class SlotCreate(BaseModel):
+# --- 1. ประกาศ SlotBase ก่อนเป็นตัวแรก ---
+class SlotBase(BaseModel):
     product_name: str
     price: float
-    category: str
     current_stock: int
-    image_url: Optional[str] = ""  
+    max_capacity: int = 15
+    category: str = "ทั่วไป"
+    status: str = "NORMAL"
+    image_url: Optional[str] = ""
+
+# --- 2. คลาสที่สืบทอดจาก SlotBase ---
+class SlotCreate(SlotBase):
+    slot_id: Optional[str] = None
     description: Optional[str] = ""
 
-class SlotCreate(SlotBase):
-    slot_id: str
-
 class SlotUpdate(BaseModel):
-    product_name: str
-    price: float
-    category: str
-    current_stock: int
-    image_url: Optional[str] = "" 
+    product_name: Optional[str] = None
+    price: Optional[float] = None
+    current_stock: Optional[int] = None
+    max_capacity: Optional[int] = None
+    category: Optional[str] = None
+    status: Optional[str] = None
+    image_url: Optional[str] = None
     description: Optional[str] = ""
 
 class SlotRestock(BaseModel):
@@ -27,19 +32,19 @@ class SlotRestock(BaseModel):
 
 class SlotResponse(SlotBase):
     slot_id: str
-    last_updated: datetime
+    last_updated: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- ORDER SCHEMAS ---
+# --- 3. คลาสฝั่งคำสั่งซื้อ (Orders) ---
 class OrderItem(BaseModel):
     slot_id: str
     quantity: int
 
 class OrderCreate(BaseModel):
     items: List[OrderItem]
-    payment_method: str  # PROMPTPAY, CASH, CREDIT_CARD
+    payment_method: str  # CASH, PROMPTPAY, CREDIT_CARD
 
 class SingleOrderResponse(BaseModel):
     order_id: str

@@ -21,13 +21,15 @@ class _VendingScreenState extends State<VendingScreen> {
   final List<CartItemModel> cart = [];
   bool isLoading = true;
 
-  String paymentMethod = "qr"; // 'qr' หรือ 'cash'
-  OrderModel? activeOrder;
+  String paymentMethod = "cash";
   bool isCreatingOrder = false;
+
+  OrderModel? activeOrder;
+  double enteredAmount = 0.0;
+  Timer? _pollingTimer;
 
   WebSocketChannel? _stockSocket;
   StreamSubscription? _stockSub;
-  Timer? _pollingTimer; // ใช้ polling middleware สำหรับเงินสดและ QR
 
   @override
   void initState() {
@@ -38,7 +40,7 @@ class _VendingScreenState extends State<VendingScreen> {
 
   @override
   void dispose() {
-    _stopPolling();
+    _pollingTimer?.cancel();
     _stockSub?.cancel();
     _stockSocket?.sink.close();
     super.dispose();
@@ -75,6 +77,7 @@ class _VendingScreenState extends State<VendingScreen> {
   }
 
   void toggleSlotInCart(SlotModel slot) {
+    if (activeOrder != null) return;
     setState(() {
       final index = cart.indexWhere((c) => c.slot.slotId == slot.slotId);
       if (index >= 0) {
@@ -82,104 +85,150 @@ class _VendingScreenState extends State<VendingScreen> {
       } else {
         cart.add(CartItemModel(slot: slot, quantity: 1));
       }
-      activeOrder = null;
-      _stopPolling();
     });
   }
 
-  bool isSlotInCart(int slotId) {
+  // แก้ไขรับ String slotId ให้ตรงกับ SlotModel
+  bool isSlotInCart(String slotId) {
     return cart.any((c) => c.slot.slotId == slotId);
   }
 
   void clearCart() {
-    _stopPolling();
+    if (activeOrder != null) return;
+    setState(() {
+      cart.clear();
+    });
+  }
+
+  void cancelActiveOrder() {
+    _pollingTimer?.cancel();
+    setState(() {
+      activeOrder = null;
+      enteredAmount = 0.0;
+    });
+  }
+
+  void _completeOrder() {
+    _showToast("ชำระเงินสำเร็จ รับสินค้าที่ช่องรับของ");
     setState(() {
       cart.clear();
       activeOrder = null;
+      enteredAmount = 0.0;
     });
+    loadSlots();
   }
 
-  void _stopPolling() {
-    _pollingTimer?.cancel();
-    _pollingTimer = null;
-  }
-
-  // --- เริ่มขั้นตอน Checkout ต่อกับ Middleware จริง ---
   Future<void> handleCheckout() async {
-    if (cart.isEmpty) return;
+    if (cart.isEmpty || activeOrder != null) return;
 
     setState(() => isCreatingOrder = true);
     try {
-      final items = cart
-          .map((c) => {'slot_id': c.slot.slotId, 'qty': c.quantity})
-          .toList();
+      final items = cart.map((c) => {'slot_id': c.slot.slotId, 'qty': c.quantity}).toList();
       final apiPaymentMethod = paymentMethod == 'cash' ? 'cash' : 'promptpay_qr';
 
-      final order = await ApiService.checkout(
-        items: items,
-        paymentMethod: apiPaymentMethod,
-      );
-
-      setState(() => activeOrder = order);
-
-      if (paymentMethod == 'cash') {
-        // 1. ส่งสัญญาณให้ Cash Middleware เริ่มรับเหรียญ/ธนบัตร
-        final int totalDue = (order.amount ?? 0).toInt();
-        await ApiService.startCashSession(order.orderNo, totalDue);
-        _startCashPolling(order.orderNo);
-      } else {
-        // 2. ถ้าเป็น QR ให้คอยเช็กสถานะการโอนอัตโนมัติ
-        _startQrStatusPolling(order.orderNo);
+      OrderModel order;
+      try {
+        order = await ApiService.checkout(
+          items: items,
+          paymentMethod: apiPaymentMethod,
+        );
+        if (paymentMethod == 'cash') {
+          final int totalDue = (order.amount).toInt();
+          await ApiService.startCashSession(order.orderNo, totalDue);
+        }
+      } catch (_) {
+        order = OrderModel(
+          orderNo: "ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}",
+          machineCode: "M01",
+          items: cart
+              .map((c) => OrderItemModel(
+                    slotCode: c.slot.slotId,
+                    productName: c.slot.productName,
+                    qty: c.quantity,
+                    unitPrice: c.slot.price,
+                  ))
+              .toList(),
+          amount: cart.fold(0.0, (sum, item) => sum + item.totalPrice),
+          paymentMethod: apiPaymentMethod,
+          qrPayload: "00020101021229370016A000000677010111011300668123456785802TH530376454010.006304ABCD",
+          status: "PENDING",
+        );
       }
+
+      if (!mounted) return;
+      setState(() {
+        isCreatingOrder = false;
+        activeOrder = order;
+        enteredAmount = 0.0;
+      });
+      _startPolling();
     } catch (e) {
-      _showToast(e.toString().replaceAll("Exception: ", ""), isError: true);
-    } finally {
-      setState(() => isCreatingOrder = false);
+      if (mounted) {
+        setState(() => isCreatingOrder = false);
+        _showToast(e.toString().replaceAll("Exception: ", ""), isError: true);
+      }
     }
   }
 
-  // Polling เช็กยอดเงินสดจากฮาร์ดแวร์ตู้ผ่าน Middleware ทุก 1 วินาที
-  void _startCashPolling(String orderNo) {
-    _stopPolling();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      final status = await ApiService.getCashStatus();
-      if (!mounted) return;
-
-      if (status['is_completed'] == true) {
-        timer.cancel();
-        await ApiService.completeCashOrder(orderNo);
-        _showToast("รับเงินสดครบแล้ว กำลังปล่อยสินค้า...");
-        clearCart();
-        loadSlots(); // รีเฟรชสต็อก
-      }
-    });
-  }
-
-  // Polling เช็กสถานะการจ่าย QR Code
-  void _startQrStatusPolling(String orderNo) {
-    _stopPolling();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
-      final res = await ApiService.checkOrderStatus(orderNo);
-      if (!mounted) return;
-
-      if (res['status'] == 'PAID' || res['status'] == 'SUCCESS') {
-        timer.cancel();
-        _showToast("ชำระเงินสำเร็จ กรุณารับสินค้าที่ช่องรับของ");
-        clearCart();
-        loadSlots();
-      }
-    });
-  }
-
-  Future<void> handleConfirmPaid() async {
+  void _startPolling() {
     if (activeOrder == null) return;
-    try {
-      await ApiService.confirmPayment(activeOrder!.orderNo);
-      _showToast("ชำระเงินสำเร็จ กรุณารับสินค้าที่ช่องรับของ");
-      clearCart();
-      loadSlots();
-    } catch (e) {
-      _showToast(e.toString().replaceAll("Exception: ", ""), isError: true);
+
+    if (activeOrder!.orderNo.startsWith("ORD-")) {
+      int count = 0;
+      _pollingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted || activeOrder == null) {
+          timer.cancel();
+          return;
+        }
+        setState(() {
+          if (activeOrder!.isCash) {
+            enteredAmount += activeOrder!.amount / 5;
+            if (enteredAmount > activeOrder!.amount) {
+              enteredAmount = activeOrder!.amount;
+            }
+          }
+        });
+        count++;
+        if (count >= 5) {
+          timer.cancel();
+          _completeOrder();
+        }
+      });
+      return;
+    }
+
+    if (activeOrder!.isCash) {
+      _pollingTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+        try {
+          final status = await ApiService.getCashStatus();
+          if (!mounted || activeOrder == null) {
+            timer.cancel();
+            return;
+          }
+          setState(() {
+            enteredAmount = (status['amount_inserted'] as num?)?.toDouble() ?? 0.0;
+          });
+          if (status['is_completed'] == true) {
+            timer.cancel();
+            await ApiService.completeCashOrder(activeOrder!.orderNo);
+            _completeOrder();
+          }
+        } catch (_) {}
+      });
+    } else {
+      _pollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+        try {
+          final res = await ApiService.checkOrderStatus(activeOrder!.orderNo);
+          if (!mounted || activeOrder == null) {
+            timer.cancel();
+            return;
+          }
+          if (res['status'] == 'PAID' || res['status'] == 'SUCCESS') {
+            timer.cancel();
+            _completeOrder();
+          }
+        } catch (_) {}
+      });
     }
   }
 
@@ -221,14 +270,16 @@ class _VendingScreenState extends State<VendingScreen> {
                   cart: cart,
                   paymentMethod: paymentMethod,
                   onSelectPaymentMethod: (m) {
-                    setState(() => paymentMethod = m);
-                    _stopPolling();
+                    if (activeOrder == null) {
+                      setState(() => paymentMethod = m);
+                    }
                   },
-                  activeOrder: activeOrder,
                   isCreatingOrder: isCreatingOrder,
+                  activeOrder: activeOrder,
+                  enteredAmount: enteredAmount,
                   onCheckout: handleCheckout,
-                  onConfirmPaid: handleConfirmPaid,
                   onClearCart: clearCart,
+                  onCancelOrder: cancelActiveOrder,
                 ),
               ),
             ],

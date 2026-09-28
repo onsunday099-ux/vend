@@ -6,7 +6,7 @@ import 'slot_card.dart' show SlotCard;
 class VendingScreenPanel extends StatefulWidget {
   final List<SlotModel> slots;
   final bool isLoading;
-  final Function(int) isSlotInCart;
+  final bool Function(String) isSlotInCart;
   final Function(SlotModel) onToggleSelect;
   final VoidCallback onRefresh;
 

@@ -1,114 +1,65 @@
 from database import SessionLocal, engine, Base
-from models import Slot
-from datetime import datetime, timezone
+from models import Product, MachineSlot
 
-# อัปเดตโครงสร้างตาราง
+# 1. สร้างตารางทั้งหมดในฐานข้อมูล
 Base.metadata.create_all(bind=engine)
 
-def seed_slots():
+def seed():
     db = SessionLocal()
     
-    # ล้างข้อมูลเดิมในช่องตู้สินค้า
-    db.query(Slot).delete()
+    # ล้างข้อมูลเดิมออกก่อน
+    db.query(MachineSlot).delete()
+    db.query(Product).delete()
 
-    # รายการสินค้าจำลอง (พร้อมรูปภาพจริงจาก Unsplash)
+    # รายการสินค้าจำลองพร้อมรูปภาพจริง
     mock_items = [
-        Slot(
-            slot_id="A1",
-            product_name="น้ำดื่มสิงห์ 600ml",
-            price=10.0,
-            current_stock=7,
-            max_capacity=10,
-            category="เครื่องดื่ม",
-            status="NORMAL",
-            image_url="https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=200&auto=format&fit=crop",
-            last_updated=datetime.now(timezone.utc)
-        ),
-        Slot(
-            slot_id="A2",
-            product_name="โค้ก ออริจินัล 325ml",
-            price=16.0,
-            current_stock=6,
-            max_capacity=10,
-            category="เครื่องดื่ม",
-            status="NORMAL",
-            image_url="https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=200&auto=format&fit=crop",
-            last_updated=datetime.now(timezone.utc)
-        ),
-        Slot(
-            slot_id="A3",
-            product_name="ชาเขียวอิชิตัน 420ml",
-            price=20.0,
-            current_stock=5,
-            max_capacity=10,
-            category="เครื่องดื่ม",
-            status="NORMAL",
-            image_url="https://images.unsplash.com/photo-1556881286-fc6915169721?w=200&auto=format&fit=crop",
-            last_updated=datetime.now(timezone.utc)
-        ),
-        Slot(
-            slot_id="A4",
-            product_name="กาแฟกระป๋อง เบอร์ดี้",
-            price=17.0,
-            current_stock=8,
-            max_capacity=10,
-            category="เครื่องดื่ม",
-            status="NORMAL",
-            image_url="https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=200&auto=format&fit=crop",
-            last_updated=datetime.now(timezone.utc)
-        ),
-        Slot(
-            slot_id="B1",
-            product_name="เลย์ คลาสสิค 50g",
-            price=22.0,
-            current_stock=4,
-            max_capacity=8,
-            category="ขนมขบเคี้ยว",
-            status="NORMAL",
-            image_url="https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=200&auto=format&fit=crop",
-            last_updated=datetime.now(timezone.utc)
-        ),
-        Slot(
-            slot_id="B2",
-            product_name="คิทแคท 2 Finger",
-            price=15.0,
-            current_stock=10,
-            max_capacity=10,
-            category="ขนมขบเคี้ยว",
-            status="NORMAL",
-            image_url="https://images.unsplash.com/photo-1582293041079-7814c2f12063?w=200&auto=format&fit=crop",
-            last_updated=datetime.now(timezone.utc)
-        ),
-        Slot(
-            slot_id="B3",
-            product_name="ช็อกโกแลต เอ็มแอนด์เอ็ม",
-            price=25.0,
-            current_stock=9,
-            max_capacity=10,
-            category="ขนมขบเคี้ยว",
-            status="NORMAL",
-            image_url="https://images.unsplash.com/photo-1581798459219-318e76aecc7b?w=200&auto=format&fit=crop",
-            last_updated=datetime.now(timezone.utc)
-        ),
-        Slot(
-            slot_id="B4",
-            product_name="นมสดไทย-เดนมาร์ค 200ml",
-            price=13.0,
-            current_stock=0,  # สินค้าหมดเพื่อทดสอบสถานะปุ่ม
-            max_capacity=10,
-            category="เครื่องดื่ม",
-            status="NORMAL",
-            image_url="https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&auto=format&fit=crop",
-            last_updated=datetime.now(timezone.utc)
-        ),
+        {
+            "slot": "A1", "name": "น้ำดื่มสิงห์ 600ml", "cat": "เครื่องดื่ม", "price": 10.0, "stock": 7,
+            "img": "https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=300&auto=format&fit=crop"
+        },
+        {
+            "slot": "A2", "name": "โค้ก ออริจินัล 325ml", "cat": "เครื่องดื่ม", "price": 16.0, "stock": 6,
+            "img": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=300&auto=format&fit=crop"
+        },
+        {
+            "slot": "A3", "name": "ชาเขียวโออิชิ 380ml", "cat": "เครื่องดื่ม", "price": 20.0, "stock": 5,
+            "img": "https://images.unsplash.com/photo-1556881286-fc6915169721?w=300&auto=format&fit=crop"
+        },
+        {
+            "slot": "B1", "name": "เลย์ คลาสสิค 50g", "cat": "ของว่าง", "price": 22.0, "stock": 4,
+            "img": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=300&auto=format&fit=crop"
+        },
+        {
+            "slot": "B2", "name": "คิทแคท 2 Finger", "cat": "ของว่าง", "price": 15.0, "stock": 10,
+            "img": "https://images.unsplash.com/photo-1582293041079-7814c2f12063?w=300&auto=format&fit=crop"
+        },
+        {
+            "slot": "B3", "name": "นมสด 200ml", "cat": "เครื่องดื่ม", "price": 13.0, "stock": 8,
+            "img": "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=300&auto=format&fit=crop"
+        },
     ]
 
     for item in mock_items:
-        db.add(item)
+        prod = Product(
+            name=item["name"],
+            category=item["cat"],
+            price=item["price"],
+            image_url=item["img"]
+        )
+        db.add(prod)
+        db.flush()
+
+        slot = MachineSlot(
+            slot_code=item["slot"],
+            product_id=prod.id,
+            current_stock=item["stock"],
+            capacity=15
+        )
+        db.add(slot)
 
     db.commit()
     db.close()
-    print("Seed ข้อมูลจำลองพร้อมรูปภาพสำเร็จ!")
+    print("สร้างตารางและใส่ข้อมูลจำลองพร้อมรูปภาพสำเร็จเรียบร้อย!")
 
 if __name__ == "__main__":
-    seed_slots()
+    seed()
