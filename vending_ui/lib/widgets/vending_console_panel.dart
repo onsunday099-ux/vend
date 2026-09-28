@@ -35,7 +35,7 @@ class VendingConsolePanel extends StatelessWidget {
       );
     }
 
-    if (paymentMethod == 'qr' && activeOrder != null) {
+    if (paymentMethod == 'qr' && activeOrder != null && activeOrder!.qrPayload != null) {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -47,7 +47,7 @@ class VendingConsolePanel extends StatelessWidget {
               border: Border.all(color: AppColors.cardBorder),
             ),
             child: QrImageView(
-              data: activeOrder!.qrPayload,
+              data: activeOrder!.qrPayload!,
               size: 115,
               padding: EdgeInsets.zero,
             ),

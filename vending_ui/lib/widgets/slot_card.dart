@@ -65,7 +65,7 @@ class SlotCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    isOut ? "หมด" : "เหลือ ${slot.stock}",
+                    isOut ? "หมด" : "เหลือ ${slot.currentStock}",
                     style: TextStyle(
                       fontSize: 8.5,
                       fontWeight: FontWeight.bold,

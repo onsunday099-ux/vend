@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import '../config/app_colors.dart';
 import '../models/cart_item_model.dart';
 import '../models/order_model.dart';
@@ -19,14 +21,47 @@ class _VendingScreenState extends State<VendingScreen> {
   final List<CartItemModel> cart = [];
   bool isLoading = true;
 
-  String paymentMethod = "qr"; // 'qr' หรือ 'cash'
+  String paymentMethod = "qr"; // 'qr' (แสดงเป็น promptpay_qr เวลาเรียก API) หรือ 'cash'
   OrderModel? activeOrder;
   bool isCreatingOrder = false;
+
+  WebSocketChannel? _stockSocket;
+  StreamSubscription? _stockSub;
 
   @override
   void initState() {
     super.initState();
     loadSlots();
+    _connectStockSocket();
+  }
+
+  @override
+  void dispose() {
+    _stockSub?.cancel();
+    _stockSocket?.sink.close();
+    super.dispose();
+  }
+
+  // เชื่อมต่อ WebSocket เพื่อรับสต็อกล่าสุดแบบเรียลไทม์ทุกครั้งที่มีการเปลี่ยนแปลงจากฝั่งใดก็ตาม
+  // (ลูกค้าเครื่องอื่น หรือแอดมินเติม/แก้ไขสินค้าที่หน้า /restock)
+  void _connectStockSocket() {
+    try {
+      _stockSocket = ApiService.connectStockSocket();
+      _stockSub = _stockSocket!.stream.listen(
+        (message) {
+          final updated = ApiService.parseStockPush(message);
+          setState(() {
+            slots = updated;
+            isLoading = false;
+          });
+        },
+        onError: (_) {
+          // เชื่อมต่อไม่ได้ ให้ใช้การดึงข้อมูลผ่าน REST ตามปกติแทน
+        },
+      );
+    } catch (_) {
+      // ไม่สามารถเชื่อมต่อ WebSocket ได้ (เช่นทดสอบบนเว็บที่ยังไม่เปิดพอร์ต) — ยังใช้งานผ่าน REST ต่อไปได้ปกติ
+    }
   }
 
   Future<void> loadSlots() async {
@@ -67,16 +102,26 @@ class _VendingScreenState extends State<VendingScreen> {
   Future<void> handleCheckout() async {
     if (cart.isEmpty) return;
 
-    if (paymentMethod == 'cash') {
-      _showToast("กรุณาหยอดเงินสดให้ครบจำนวน");
-      return;
-    }
-
     setState(() => isCreatingOrder = true);
     try {
-      final targetSlot = cart.first.slot;
-      final order = await ApiService.createOrder(targetSlot.slotId);
-      setState(() => activeOrder = order);
+      // ส่งสินค้าทุกชิ้นในตะกร้าไปสร้างเป็นออเดอร์เดียว (ไม่ใช่แค่ชิ้นแรกอีกต่อไป)
+      final items = cart
+          .map((c) => {'slot_id': c.slot.slotId, 'qty': c.quantity})
+          .toList();
+      final apiPaymentMethod = paymentMethod == 'cash' ? 'cash' : 'promptpay_qr';
+
+      final order = await ApiService.checkout(
+        items: items,
+        paymentMethod: apiPaymentMethod,
+      );
+
+      if (order.isCash) {
+        // เงินสด: Backend ตัดสต็อกและปิดออเดอร์ให้ทันที ไม่ต้องรอสแกน/ยืนยันซ้ำ
+        _showToast("รับเงินสดสำเร็จ กรุณารับสินค้าที่ช่องรับของ");
+        clearCart();
+      } else {
+        setState(() => activeOrder = order);
+      }
     } catch (e) {
       _showToast(e.toString().replaceAll("Exception: ", ""), isError: true);
     } finally {
@@ -90,7 +135,6 @@ class _VendingScreenState extends State<VendingScreen> {
       await ApiService.confirmPayment(activeOrder!.orderNo);
       _showToast("ชำระเงินสำเร็จ กรุณารับสินค้าที่ช่องรับของ");
       clearCart();
-      loadSlots();
     } catch (e) {
       _showToast(e.toString().replaceAll("Exception: ", ""), isError: true);
     }

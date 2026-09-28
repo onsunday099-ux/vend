@@ -250,14 +250,14 @@
       container.innerHTML = "";
 
       slotsData.forEach((slot, index) => {
-        const isOutOfStock = slot.stock <= 0;
+        const isOutOfStock = slot.current_stock <= 0;
         const card = document.createElement('div');
         card.className = "slot-card";
         card.innerHTML = `
           <div class="slot-header">
             <span class="item-label">สินค้าชิ้นที่ ${index + 1}</span>
             <span class="slot-stock-badge ${isOutOfStock ? 'empty' : ''}">
-              ${isOutOfStock ? 'สินค้าหมด' : `คงเหลือ ${slot.stock} ชิ้น`}
+              ${isOutOfStock ? 'สินค้าหมด' : `คงเหลือ ${slot.current_stock} ชิ้น`}
             </span>
           </div>
 
@@ -283,7 +283,7 @@
 
           <div class="restock-section">
             <label>จำนวนสต็อกปัจจุบัน</label>
-            <input type="number" id="stock-${slot.slot_id}" value="${slot.stock}">
+            <input type="number" id="stock-${slot.slot_id}" value="${slot.current_stock}">
             <div class="quick-btns">
               <button class="btn-quick" onclick="addStock(${slot.slot_id}, 1)">+1</button>
               <button class="btn-quick" onclick="addStock(${slot.slot_id}, 5)">+5</button>
@@ -315,7 +315,7 @@
         product_name: document.getElementById(`name-${slotId}`).value,
         price: parseFloat(document.getElementById(`price-${slotId}`).value),
         category: document.getElementById(`cat-${slotId}`).value,
-        stock: parseInt(document.getElementById(`stock-${slotId}`).value)
+        current_stock: parseInt(document.getElementById(`stock-${slotId}`).value)
       };
 
       try {
@@ -368,7 +368,7 @@
         const res = await fetch(`${BASE_URL}/api/slots`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_name: productName, price, category, stock })
+          body: JSON.stringify({ product_name: productName, price, category, current_stock: stock })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || "เกิดข้อผิดพลาด");
