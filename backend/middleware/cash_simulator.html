@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VMC Cash Simulator & Middleware</title>
+    <style>
+        :root {
+            --bg-main: #0f172a; --bg-card: #1e293b; --bg-inner: #334155;
+            --text-main: #f8fafc; --text-muted: #94a3b8;
+            --accent-blue: #38bdf8; --accent-green: #4ade80; --accent-yellow: #fbbf24;
+            --border-color: #475569;
+        }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg-main); color: var(--text-main); margin: 0; padding: 24px; }
+        .container { max-width: 960px; margin: 0 auto; background: var(--bg-card); border-radius: 14px; padding: 28px; border: 1px solid var(--border-color); }
+        header { text-align: center; margin-bottom: 24px; }
+        h1 { color: var(--accent-blue); margin: 0 0 6px 0; font-size: 1.8rem; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: var(--bg-inner); border-radius: 10px; padding: 20px; }
+        .card h2 { margin-top: 0; font-size: 1.15rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .stat-block { margin-top: 12px; padding: 10px 14px; background: rgba(15, 23, 42, 0.6); border-radius: 8px; border-left: 4px solid var(--accent-blue); }
+        .stat-label { font-size: 0.85rem; color: var(--text-muted); }
+        .stat-val { font-size: 1.7rem; font-weight: 700; margin-top: 2px; }
+        .btn-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+        button { cursor: pointer; border: none; border-radius: 6px; padding: 11px 8px; font-weight: 700; transition: all 0.15s; }
+        button:hover { transform: translateY(-2px); filter: brightness(1.1); }
+        .btn-coin { background: var(--accent-yellow); color: #000; }
+        .btn-bill { background: var(--accent-green); color: #000; }
+        .btn-action { background: #2563eb; color: #fff; width: 100%; margin-top: 14px; padding: 12px; }
+        .btn-cancel { background: #dc2626; color: #fff; width: 100%; margin-top: 10px; padding: 12px; }
+        .badge { display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; }
+        .badge-idle { background: #64748b; color: #fff; }
+        .badge-active { background: #0284c7; color: #fff; }
+        .badge-enough { background: #16a34a; color: #fff; }
+        .log-box { background: #0b1120; padding: 12px; border-radius: 8px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; color: #67e8f9; border: 1px solid var(--border-color); }
+        input { width: 100%; box-sizing: border-box; padding: 9px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: #0f172a; color: #fff; margin-bottom: 10px; }
+        .tube-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 8px; }
+        .tube-table th, .tube-table td { padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); text-align: left; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>VMC Cash Simulator & Middleware</h1>
+        <div style="color:var(--text-muted);">ระบบจำลองฮาร์ดแวร์รับเงินสด-ทอนเงิน (MDB/ICP Protocol Middleware)</div>
+    </header>
+
+    <div class="grid">
+        <div class="card">
+            <h2>สถานะการชำระเงิน (Cash Payment Session)</h2>
+            <div class="info-row">
+                <span>สถานะ:</span>
+                <span id="sess-state" class="badge badge-idle">IDLE</span>
+            </div>
+            <div class="info-row">
+                <span>เลขออเดอร์:</span>
+                <b id="sess-order">-</b>
+            </div>
+            <div class="stat-block" style="border-left-color: var(--accent-blue);">
+                <div class="stat-label">ยอดที่ต้องชำระ</div>
+                <div class="stat-val" style="color: var(--accent-blue);" id="sess-due">฿0.00</div>
+            </div>
+            <div class="stat-block" style="border-left-color: var(--accent-green);">
+                <div class="stat-label">ยอดเงินที่หยอดสะสม</div>
+                <div class="stat-val" style="color: var(--accent-green);" id="sess-inserted">฿0.00</div>
+            </div>
+            <div class="stat-block" style="border-left-color: var(--accent-yellow);">
+                <div class="stat-label">เงินทอนที่ต้องได้รับ</div>
+                <div class="stat-val" style="color: var(--accent-yellow);" id="sess-change">฿0.00</div>
+            </div>
+            <div id="sess-msg" style="color:#cbd5e1; font-size:0.88rem; font-style:italic; margin-top:12px;">พร้อมรับคำสั่งจากตู้</div>
+            <button class="btn-action" id="btn-complete" onclick="completePayment()" style="display:none;">✓ ยืนยันชำระเงิน & สั่งจ่ายสินค้า</button>
+            <button class="btn-cancel" id="btn-cancel" onclick="cancelPayment()" style="display:none;">✕ กดยกเลิก & คืนเงินสด</button>
+        </div>
+
+        <div class="card">
+            <h2>แผงจำลองหยอดเงิน (Simulate Bill & Coin)</h2>
+            <div style="font-size:0.9rem; font-weight:600; margin-top:8px; color:var(--accent-yellow);">🪙 หยอดเหรียญ (Coin Acceptor)</div>
+            <div class="btn-group">
+                <button class="btn-coin" onclick="insertCash(1)">+ 1฿</button>
+                <button class="btn-coin" onclick="insertCash(2)">+ 2฿</button>
+                <button class="btn-coin" onclick="insertCash(5)">+ 5฿</button>
+                <button class="btn-coin" onclick="insertCash(10)">+ 10฿</button>
+            </div>
+            <div style="font-size:0.9rem; font-weight:600; margin-top:16px; color:var(--accent-green);">💵 สอดธนบัตร (Bill Validator)</div>
+            <div class="btn-group">
+                <button class="btn-bill" onclick="insertCash(20)">+ 20฿</button>
+                <button class="btn-bill" onclick="insertCash(50)">+ 50฿</button>
+                <button class="btn-bill" onclick="insertCash(100)">+ 100฿</button>
+                <button class="btn-bill" onclick="insertCash(500)">+ 500฿</button>
+            </div>
+            <hr style="border:none; border-top:1px solid var(--border-color); margin:18px 0 14px 0;">
+            <div style="font-size:0.9rem; font-weight:600; margin-bottom:8px;">⚡ เปิดเซสชันทดสอบเอง (Manual Start)</div>
+            <input type="text" id="manual-order" value="ORD-DEMO-01" placeholder="เลขออเดอร์">
+            <input type="number" id="manual-due" value="35" placeholder="ยอดเงิน">
+            <button class="btn-action" style="margin-top:2px;" onclick="startManualSession()">เปิดเซสชันรับเงินสด</button>
+        </div>
+    </div>
+
+    <div class="grid" style="margin-top:20px;">
+        <div class="card">
+            <h2>คลังเงินทอนสำรอง (Coin Tube Inventory)</h2>
+            <div id="tube-container">กำลังเชื่อมต่อ Middleware...</div>
+        </div>
+        <div class="card">
+            <h2>ประวัติการทำงาน (Hardware Activity Log)</h2>
+            <div class="log-box" id="log-box"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = window.location.origin;
+    function log(msg) {
+        const box = document.getElementById('log-box');
+        box.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}<br>` + box.innerHTML;
+    }
+    async function fetchStatus() {
+        try {
+            const res = await fetch(`${API_BASE}/api/middleware/cash/status`);
+            if (!res.ok) return;
+            const data = await res.json();
+            updateUI(data);
+        } catch (e) { console.error(e); }
+    }
+    function updateUI(data) {
+        const sess = data.current_session;
+        const inv = data.inventory;
+        const coins = inv.coins_in_tubes;
+        document.getElementById('tube-container').innerHTML = `
+            <table class="tube-table">
+                <thead><tr><th>ชนิดเหรียญ</th><th>คงเหลือ</th><th>มูลค่า</th></tr></thead>
+                <tbody>
+                    <tr><td>เหรียญ 10฿</td><td>${coins[10]} เหรียญ</td><td>${(coins[10]*10).toFixed(2)} ฿</td></tr>
+                    <tr><td>เหรียญ 5฿</td><td>${coins[5]} เหรียญ</td><td>${(coins[5]*5).toFixed(2)} ฿</td></tr>
+                    <tr><td>เหรียญ 2฿</td><td>${coins[2]} เหรียญ</td><td>${(coins[2]*2).toFixed(2)} ฿</td></tr>
+                    <tr><td>เหรียญ 1฿</td><td>${coins} เหรียญ</td><td>${(coins*1).toFixed(2)} ฿</td></tr>
+                </tbody>
+            </table>
+            <div style="margin-top:12px; font-size:0.9rem; line-height:1.6;">
+                💰 <b>ยอดเงินทอนรวม:</b> ฿${inv.total_change_available.toFixed(2)}<br>
+                💵 <b>ในกล่องเงินสด (Cash Box):</b> ฿${inv.cash_box_total.toFixed(2)}
+            </div>
+        `;
+        if (!sess || sess.state === 'IDLE') {
+            document.getElementById('sess-state').className = 'badge badge-idle';
+            document.getElementById('sess-state').innerText = 'IDLE';
+            document.getElementById('sess-order').innerText = '-';
+            document.getElementById('sess-due').innerText = '฿0.00';
+            document.getElementById('sess-inserted').innerText = '฿0.00';
+            document.getElementById('sess-change').innerText = '฿0.00';
+            document.getElementById('sess-msg').innerText = 'ตู้พร้อมทำงาน';
+            document.getElementById('btn-complete').style.display = 'none';
+            document.getElementById('btn-cancel').style.display = 'none';
+        } else {
+            document.getElementById('sess-order').innerText = sess.order_no;
+            document.getElementById('sess-due').innerText = '฿' + sess.amount_due.toFixed(2);
+            document.getElementById('sess-inserted').innerText = '฿' + sess.inserted_amount.toFixed(2);
+            document.getElementById('sess-change').innerText = '฿' + sess.change_amount.toFixed(2);
+            document.getElementById('sess-msg').innerText = sess.message;
+            const b = document.getElementById('sess-state');
+            b.innerText = sess.state;
+            b.className = sess.state === 'ENOUGH_CASH' ? 'badge badge-enough' : 'badge badge-active';
+            document.getElementById('btn-complete').style.display = sess.state === 'ENOUGH_CASH' ? 'block' : 'none';
+            document.getElementById('btn-cancel').style.display = (sess.state !== 'COMPLETED' && sess.state !== 'CANCELLED') ? 'block' : 'none';
+        }
+    }
+    async function startManualSession() {
+        const order_no = document.getElementById('manual-order').value.trim() || 'ORD-DEMO';
+        const amount_due = parseFloat(document.getElementById('manual-due').value) || 20.0;
+        await fetch(`${API_BASE}/api/middleware/cash/session/start`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({order_no, amount_due})
+        });
+        log(`▶ เปิดเซสชันชำระเงินสด: ${order_no} ยอด ฿${amount_due.toFixed(2)}`);
+        fetchStatus();
+    }
+    async function insertCash(denom) {
+        const res = await fetch(`${API_BASE}/api/middleware/cash/insert`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({denomination: denom})
+        });
+        const data = await res.json();
+        log(data.success ? ` หยอดเงิน ${denom}฿ สำเร็จ` : `❌ ปฏิเสธ: ${data.message}`);
+        fetchStatus();
+    }
+    async function completePayment() {
+        const res = await fetch(`${API_BASE}/api/middleware/cash/complete`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            alert(`ชำระเงินสำเร็จ! เงินทอน: ฿${data.session.change_amount.toFixed(2)}`);
+            log(` ชำระเงินสำเร็จ! เงินทอน: ฿${data.session.change_amount.toFixed(2)}`);
+        } else {
+            alert(data.message);
+        }
+        fetchStatus();
+    }
+    async function cancelPayment() {
+        const res = await fetch(`${API_BASE}/api/middleware/cash/cancel`, { method: 'POST' });
+        const data = await res.json();
+        alert(data.message);
+        log(` ยกเลิกรายการ: ${data.message}`);
+        fetchStatus();
+    }
+    setInterval(fetchStatus, 1200);
+    fetchStatus();
+    log("VMC Cash Simulator พร้อมใช้งาน");
+</script>
+</body>
+</html>
