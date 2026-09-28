@@ -8,6 +8,9 @@ class SlotModel {
   final String status;
   final DateTime lastUpdated;
   final String? imageUrl; // <-- เพิ่มฟิลด์ imageUrl
+  int get stock => currentStock;
+  String get name => productName;
+  String get id => slotId;
   String get slotCode => slotId;
 
   SlotModel({

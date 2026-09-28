@@ -1,176 +1,212 @@
 import 'package:flutter/material.dart';
-import '../config/app_colors.dart';
 import '../models/slot_model.dart';
+import '../config/app_colors.dart';
 
 class SlotCard extends StatelessWidget {
   final SlotModel slot;
-  final bool isSelected;
-  final VoidCallback onToggleSelect;
+  final bool isInCart;
+  final VoidCallback? onTap;
 
   const SlotCard({
-    super.key,
+    Key? key,
     required this.slot,
-    required this.isSelected,
-    required this.onToggleSelect,
-  });
-
-  String get cleanProductName => slot.productName.split('#').first.trim();
-
-  IconData _getIcon(String category) {
-    if (category.contains("เครื่องดื่ม")) return Icons.local_drink_rounded;
-    if (category.contains("ขนมขบเคี้ยว") || category.contains("ขนม")) {
-      return Icons.fastfood_rounded;
-    }
-    return Icons.inventory_2_rounded;
-  }
+    this.isInCart = false,
+    this.onTap,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final bool isOut = slot.isOutOfStock;
+    final bool isOutOfStock = slot.currentStock <= 0;
+    final bool hasImage = slot.imageUrl != null && slot.imageUrl!.isNotEmpty;
 
-    return InkWell(
-      onTap: isOut ? null : onToggleSelect,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected
-                ? AppColors.consoleRed
-                : (isOut ? Colors.grey[300]! : AppColors.cardBorder),
-            width: isSelected ? 1.8 : 1.0,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: isSelected
-                  ? AppColors.consoleRed.withOpacity(0.12)
-                  : Colors.black.withOpacity(0.02),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
-            ),
-          ],
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isInCart
+              ? AppColors.primary
+              : (isOutOfStock ? Colors.grey.shade300 : Colors.grey.shade200),
+          width: isInCart ? 3.0 : 1.5,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-        child: Column(
-          children: [
-            // แถบแสดงสถานะสต็อก
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
-                  decoration: BoxDecoration(
-                    color: isOut ? const Color(0xFFFEE2E2) : const Color(0xFFECFDF5),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    isOut ? "หมด" : "คงเหลือ ${slot.currentStock}",
-                    style: TextStyle(
-                      fontSize: 8.5,
-                      fontWeight: FontWeight.bold,
-                      color: isOut ? Colors.red : const Color(0xFF059669),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-
-            // ส่วนแสดงรูปภาพสินค้า (แสดงรูปจริงจาก URL หรือแสดงไอคอนหากไม่มีรูป)
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                color: isSelected
-                    ? AppColors.consoleRed.withOpacity(0.08)
-                    : const Color(0xFFF8FAFC),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: (slot.imageUrl != null && slot.imageUrl!.trim().isNotEmpty)
-                  ? Image.network(
-                      slot.imageUrl!,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => Icon(
-                        _getIcon(slot.category),
-                        size: 20,
-                        color: isOut
-                            ? Colors.grey[400]
-                            : (isSelected ? AppColors.consoleRed : const Color(0xFF0284C7)),
+        boxShadow: [
+          BoxShadow(
+            color: isInCart
+                ? AppColors.primary.withOpacity(0.25)
+                : Colors.black.withOpacity(0.04),
+            blurRadius: isInCart ? 10 : 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: isOutOfStock ? null : onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 1. หัวการ์ด: รหัสช่อง (slotId) และสต็อกคงเหลือ (currentStock)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isOutOfStock
+                            ? Colors.grey.shade400
+                            : (isInCart ? AppColors.primary : Colors.grey.shade800),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const Center(
-                          child: SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 1.5),
-                          ),
-                        );
-                      },
-                    )
-                  : Icon(
-                      _getIcon(slot.category),
-                      size: 20,
-                      color: isOut
-                          ? Colors.grey[400]
-                          : (isSelected ? AppColors.consoleRed : const Color(0xFF0284C7)),
+                      child: Text(
+                        slot.slotId,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
-            ),
-            const Spacer(),
-
-            // ชื่อสินค้า
-            Text(
-              cleanProductName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: isOut ? Colors.grey[400] : const Color(0xFF1E293B),
-              ),
-            ),
-            const SizedBox(height: 1),
-
-            // ราคาสินค้า
-            Text(
-              "฿${slot.price.toStringAsFixed(0)}",
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: isOut ? Colors.grey[400] : AppColors.consoleRed,
-              ),
-            ),
-            const SizedBox(height: 2),
-
-            // ปุ่มเลือกสินค้า
-            SizedBox(
-              width: double.infinity,
-              height: 20,
-              child: ElevatedButton(
-                onPressed: isOut ? null : onToggleSelect,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isSelected
-                      ? AppColors.consoleRed
-                      : const Color(0xFFF1F5F9),
-                  foregroundColor: isSelected ? Colors.white : const Color(0xFF475569),
-                  elevation: 0,
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                child: Text(
-                  isSelected ? "เลือกแล้ว" : (isOut ? "หมด" : "เลือก"),
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                  ),
+                    // ป้ายสถานะ
+                    if (isInCart)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.check_circle, size: 12, color: AppColors.primary),
+                            SizedBox(width: 3),
+                            Text(
+                              "ในตะกร้า",
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Text(
+                        isOutOfStock ? "หมด" : "เหลือ ${slot.currentStock}",
+                        style: TextStyle(
+                          color: isOutOfStock ? Colors.red.shade600 : Colors.green.shade700,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            ),
-          ],
+
+              // 2. ส่วนรูปภาพสินค้า: สัดส่วน flex 6 เพื่อให้รูปใหญ่และชัดเจนที่สุด
+              Expanded(
+                flex: 6,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Center(
+                        child: hasImage
+                            ? Image.network(
+                                slot.imageUrl!,
+                                fit: BoxFit.contain, // แสดงรูปเต็มกระป๋อง/ขวด ไม่โดนตัดขอบ
+                                width: double.infinity,
+                                height: double.infinity,
+                                loadingBuilder: (context, child, progress) {
+                                  if (progress == null) return child;
+                                  return const Center(
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) => Icon(
+                                  Icons.fastfood_rounded,
+                                  size: 64,
+                                  color: Colors.grey.shade300,
+                                ),
+                              )
+                            : Icon(
+                                Icons.inventory_2_outlined,
+                                size: 64,
+                                color: Colors.grey.shade300,
+                              ),
+                      ),
+
+                      // คลุมทับเมื่อสินค้าหมด
+                      if (isOutOfStock)
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.75),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Center(
+                              child: Chip(
+                                backgroundColor: Colors.black87,
+                                label: Text(
+                                  "SOLD OUT",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+              Divider(height: 1, color: Colors.grey.shade100),
+
+              // 3. ส่วนข้อมูลสินค้า: ชื่อ (productName) และราคา (price)
+              Expanded(
+                flex: 3,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        slot.productName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isOutOfStock ? Colors.grey.shade500 : Colors.grey.shade800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "฿${slot.price.toStringAsFixed(0)}",
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          color: isOutOfStock
+                              ? Colors.grey.shade400
+                              : (isInCart ? AppColors.primary : Colors.black),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

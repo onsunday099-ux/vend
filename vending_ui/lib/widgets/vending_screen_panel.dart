@@ -1,206 +1,172 @@
 import 'package:flutter/material.dart';
-import '../config/app_colors.dart';
 import '../models/slot_model.dart';
-import 'slot_card.dart' show SlotCard;
+import '../config/app_colors.dart';
+import 'slot_card.dart';
 
 class VendingScreenPanel extends StatefulWidget {
   final List<SlotModel> slots;
   final bool isLoading;
   final bool Function(String) isSlotInCart;
-  final Function(SlotModel) onToggleSelect;
-  final VoidCallback onRefresh;
+  final void Function(SlotModel) onToggleSelect;
+  final Future<void> Function() onRefresh;
 
   const VendingScreenPanel({
-    super.key,
+    Key? key,
     required this.slots,
     required this.isLoading,
     required this.isSlotInCart,
     required this.onToggleSelect,
     required this.onRefresh,
-  });
+  }) : super(key: key);
 
   @override
   State<VendingScreenPanel> createState() => _VendingScreenPanelState();
 }
 
 class _VendingScreenPanelState extends State<VendingScreenPanel> {
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
-  // 1 แถวมี 3 อัน (3 คอลัมน์ x 2 แถว = หน้าละ 6 รายการ)
-  static const int cols = 3;
-  static const int rows = 2;
-  static const int itemsPerPage = cols * rows;
+  String _selectedCategory = 'all';
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
+  final List<Map<String, String>> _categories = const [
+    {'id': 'all', 'label': 'ทั้งหมด'},
+    {'id': 'drinks', 'label': 'เครื่องดื่ม'},
+    {'id': 'snacks', 'label': 'ขนมขบเคี้ยว'},
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final int totalPages = widget.slots.isEmpty
-        ? 1
-        : (widget.slots.length / itemsPerPage).ceil();
+    // กรองสินค้าตามหมวดหมู่
+    final filteredSlots = _selectedCategory == 'all'
+        ? widget.slots
+        : widget.slots
+            .where((s) => s.category.toLowerCase() == _selectedCategory)
+            .toList();
 
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
+      color: const Color(0xFFF8FAFC),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. หัวข้อด้านบน
+          // แถบหัวข้อด้านบน + หมวดหมู่ + ปุ่ม Refresh
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF8FAFC),
-              border: Border(
-                bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1.2),
-              ),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.storefront_rounded,
-                  size: 18,
-                  color: AppColors.primary,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
                 ),
-                SizedBox(width: 8),
-                Text(
-                  "VENDING MACHINE",
+              ],
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.storefront_rounded, color: AppColors.primary, size: 26),
+                const SizedBox(width: 8),
+                const Text(
+                  "เลือกสินค้าในตู้",
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
-                    color: AppColors.textDark,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
                   ),
+                ),
+                const SizedBox(width: 16),
+
+                // หมวดหมู่สินค้า
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _categories.map((cat) {
+                        final bool isCatSelected = _selectedCategory == cat['id'];
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(cat['label']!),
+                            selected: isCatSelected,
+                            selectedColor: AppColors.primary,
+                            backgroundColor: Colors.grey.shade100,
+                            labelStyle: TextStyle(
+                              color: isCatSelected ? Colors.white : Colors.grey.shade700,
+                              fontWeight: isCatSelected ? FontWeight.bold : FontWeight.w500,
+                              fontSize: 13,
+                            ),
+                            onSelected: (selected) {
+                              if (selected) {
+                                setState(() {
+                                  _selectedCategory = cat['id']!;
+                                });
+                              }
+                            },
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+
+                // ปุ่ม Refresh ข้อมูล
+                IconButton(
+                  tooltip: 'รีเฟรชสินค้า',
+                  icon: const Icon(Icons.refresh_rounded, color: Colors.grey),
+                  onPressed: widget.onRefresh,
                 ),
               ],
             ),
           ),
 
-          // 2. ตารางสินค้า 3 ช่องต่อแถว ขยายเต็มความสูงอัตโนมัติ
+          // ตารางแสดงสินค้า (GridView)
           Expanded(
             child: widget.isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : widget.slots.isEmpty
-                    ? const Center(
-                        child: Text(
-                          "ไม่พบรายการสินค้าในระบบ",
-                          style: TextStyle(color: AppColors.textMuted),
+                : filteredSlots.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey.shade400),
+                            const SizedBox(height: 12),
+                            Text(
+                              "ไม่พบรายการสินค้าในหมวดหมู่นี้",
+                              style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+                            ),
+                          ],
                         ),
                       )
-                    : ScrollConfiguration(
-                        behavior: const ScrollBehavior().copyWith(scrollbars: false),
-                        child: PageView.builder(
-                          controller: _pageController,
-                          physics: const NeverScrollableScrollPhysics(), // ปิด Mousewheel
-                          itemCount: totalPages,
-                          itemBuilder: (context, pageIndex) {
-                            final startIndex = pageIndex * itemsPerPage;
-                            final endIndex = (startIndex + itemsPerPage > widget.slots.length)
-                                ? widget.slots.length
-                                : startIndex + itemsPerPage;
-                            final pageSlots = widget.slots.sublist(startIndex, endIndex);
+                    : RefreshIndicator(
+                        onRefresh: widget.onRefresh,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            // แบ่ง 3 หรือ 4 คอลัมน์ตามขนาดความกว้างหน้าจอ
+                            final int crossAxisCount = constraints.maxWidth > 900 ? 4 : 3;
 
-                            return LayoutBuilder(
-                              builder: (context, constraints) {
-                                const double padding = 12.0;
-                                const double crossSpacing = 10.0;
-                                const double mainSpacing = 10.0;
+                            return GridView.builder(
+                              padding: const EdgeInsets.all(16),
+                              physics: const AlwaysScrollableScrollPhysics(
+                                parent: BouncingScrollPhysics(),
+                              ),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: 14,
+                                mainAxisSpacing: 14,
+                                childAspectRatio: 0.65, // ให้การ์ดยาวขึ้น เพื่อให้รูปขยายใหญ่ได้เต็มที่
+                              ),
+                              itemCount: filteredSlots.length,
+                              itemBuilder: (context, index) {
+                                final slot = filteredSlots[index];
+                                final bool inCart = widget.isSlotInCart(slot.slotId);
 
-                                // คำนวณขนาดให้การ์ดขยายเต็มพื้นที่พอดีทั้งกว้างและสูง
-                                final double cardWidth = (constraints.maxWidth - (padding * 2) - ((cols - 1) * crossSpacing)) / cols;
-                                final double cardHeight = (constraints.maxHeight - (padding * 2) - ((rows - 1) * mainSpacing)) / rows;
-                                final double dynamicAspectRatio = cardWidth / cardHeight;
-
-                                return GridView.builder(
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  padding: const EdgeInsets.all(padding),
-                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: cols, // 3 ช่องต่อแถว
-                                    crossAxisSpacing: crossSpacing,
-                                    mainAxisSpacing: mainSpacing,
-                                    childAspectRatio: dynamicAspectRatio,
-                                  ),
-                                  itemCount: pageSlots.length,
-                                  itemBuilder: (context, i) {
-                                    final slot = pageSlots[i];
-                                    return SlotCard(
-                                      slot: slot,
-                                      isSelected: widget.isSlotInCart(slot.slotId),
-                                      onToggleSelect: () => widget.onToggleSelect(slot),
-                                    );
-                                  },
+                                return SlotCard(
+                                  slot: slot,
+                                  isInCart: inCart,
+                                  onTap: () => widget.onToggleSelect(slot),
                                 );
                               },
                             );
                           },
                         ),
                       ),
-          ),
-
-          // 3. แถบควบคุมเปลี่ยนหน้าด้านล่าง
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF8FAFC),
-              border: Border(
-                top: BorderSide(color: Color(0xFFE2E8F0), width: 1.2),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_rounded, size: 16),
-                  color: _currentPage > 0 ? AppColors.textDark : Colors.grey[300],
-                  onPressed: _currentPage > 0
-                      ? () {
-                          setState(() => _currentPage--);
-                          _pageController.animateToPage(
-                            _currentPage,
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                          );
-                        }
-                      : null,
-                ),
-                Text(
-                  "หน้า ${_currentPage + 1} / $totalPages",
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
-                  color: _currentPage < totalPages - 1 ? AppColors.textDark : Colors.grey[300],
-                  onPressed: _currentPage < totalPages - 1
-                      ? () {
-                          setState(() => _currentPage++);
-                          _pageController.animateToPage(
-                            _currentPage,
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                          );
-                        }
-                      : null,
-                ),
-              ],
-            ),
           ),
         ],
       ),
