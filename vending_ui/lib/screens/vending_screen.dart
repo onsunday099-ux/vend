@@ -21,12 +21,13 @@ class _VendingScreenState extends State<VendingScreen> {
   final List<CartItemModel> cart = [];
   bool isLoading = true;
 
-  String paymentMethod = "qr"; // 'qr' (แสดงเป็น promptpay_qr เวลาเรียก API) หรือ 'cash'
+  String paymentMethod = "qr"; // 'qr' หรือ 'cash'
   OrderModel? activeOrder;
   bool isCreatingOrder = false;
 
   WebSocketChannel? _stockSocket;
   StreamSubscription? _stockSub;
+  Timer? _pollingTimer; // ใช้ polling middleware สำหรับเงินสดและ QR
 
   @override
   void initState() {
@@ -37,31 +38,28 @@ class _VendingScreenState extends State<VendingScreen> {
 
   @override
   void dispose() {
+    _stopPolling();
     _stockSub?.cancel();
     _stockSocket?.sink.close();
     super.dispose();
   }
 
-  // เชื่อมต่อ WebSocket เพื่อรับสต็อกล่าสุดแบบเรียลไทม์ทุกครั้งที่มีการเปลี่ยนแปลงจากฝั่งใดก็ตาม
-  // (ลูกค้าเครื่องอื่น หรือแอดมินเติม/แก้ไขสินค้าที่หน้า /restock)
   void _connectStockSocket() {
     try {
       _stockSocket = ApiService.connectStockSocket();
       _stockSub = _stockSocket!.stream.listen(
         (message) {
           final updated = ApiService.parseStockPush(message);
-          setState(() {
-            slots = updated;
-            isLoading = false;
-          });
+          if (updated.isNotEmpty) {
+            setState(() {
+              slots = updated;
+              isLoading = false;
+            });
+          }
         },
-        onError: (_) {
-          // เชื่อมต่อไม่ได้ ให้ใช้การดึงข้อมูลผ่าน REST ตามปกติแทน
-        },
+        onError: (_) {},
       );
-    } catch (_) {
-      // ไม่สามารถเชื่อมต่อ WebSocket ได้ (เช่นทดสอบบนเว็บที่ยังไม่เปิดพอร์ต) — ยังใช้งานผ่าน REST ต่อไปได้ปกติ
-    }
+    } catch (_) {}
   }
 
   Future<void> loadSlots() async {
@@ -85,6 +83,7 @@ class _VendingScreenState extends State<VendingScreen> {
         cart.add(CartItemModel(slot: slot, quantity: 1));
       }
       activeOrder = null;
+      _stopPolling();
     });
   }
 
@@ -93,18 +92,24 @@ class _VendingScreenState extends State<VendingScreen> {
   }
 
   void clearCart() {
+    _stopPolling();
     setState(() {
       cart.clear();
       activeOrder = null;
     });
   }
 
+  void _stopPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+  }
+
+  // --- เริ่มขั้นตอน Checkout ต่อกับ Middleware จริง ---
   Future<void> handleCheckout() async {
     if (cart.isEmpty) return;
 
     setState(() => isCreatingOrder = true);
     try {
-      // ส่งสินค้าทุกชิ้นในตะกร้าไปสร้างเป็นออเดอร์เดียว (ไม่ใช่แค่ชิ้นแรกอีกต่อไป)
       final items = cart
           .map((c) => {'slot_id': c.slot.slotId, 'qty': c.quantity})
           .toList();
@@ -115,12 +120,16 @@ class _VendingScreenState extends State<VendingScreen> {
         paymentMethod: apiPaymentMethod,
       );
 
-      if (order.isCash) {
-        // เงินสด: Backend ตัดสต็อกและปิดออเดอร์ให้ทันที ไม่ต้องรอสแกน/ยืนยันซ้ำ
-        _showToast("รับเงินสดสำเร็จ กรุณารับสินค้าที่ช่องรับของ");
-        clearCart();
+      setState(() => activeOrder = order);
+
+      if (paymentMethod == 'cash') {
+        // 1. ส่งสัญญาณให้ Cash Middleware เริ่มรับเหรียญ/ธนบัตร
+        final int totalDue = (order.amount ?? 0).toInt();
+        await ApiService.startCashSession(order.orderNo, totalDue);
+        _startCashPolling(order.orderNo);
       } else {
-        setState(() => activeOrder = order);
+        // 2. ถ้าเป็น QR ให้คอยเช็กสถานะการโอนอัตโนมัติ
+        _startQrStatusPolling(order.orderNo);
       }
     } catch (e) {
       _showToast(e.toString().replaceAll("Exception: ", ""), isError: true);
@@ -129,12 +138,46 @@ class _VendingScreenState extends State<VendingScreen> {
     }
   }
 
+  // Polling เช็กยอดเงินสดจากฮาร์ดแวร์ตู้ผ่าน Middleware ทุก 1 วินาที
+  void _startCashPolling(String orderNo) {
+    _stopPolling();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      final status = await ApiService.getCashStatus();
+      if (!mounted) return;
+
+      if (status['is_completed'] == true) {
+        timer.cancel();
+        await ApiService.completeCashOrder(orderNo);
+        _showToast("รับเงินสดครบแล้ว กำลังปล่อยสินค้า...");
+        clearCart();
+        loadSlots(); // รีเฟรชสต็อก
+      }
+    });
+  }
+
+  // Polling เช็กสถานะการจ่าย QR Code
+  void _startQrStatusPolling(String orderNo) {
+    _stopPolling();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+      final res = await ApiService.checkOrderStatus(orderNo);
+      if (!mounted) return;
+
+      if (res['status'] == 'PAID' || res['status'] == 'SUCCESS') {
+        timer.cancel();
+        _showToast("ชำระเงินสำเร็จ กรุณารับสินค้าที่ช่องรับของ");
+        clearCart();
+        loadSlots();
+      }
+    });
+  }
+
   Future<void> handleConfirmPaid() async {
     if (activeOrder == null) return;
     try {
       await ApiService.confirmPayment(activeOrder!.orderNo);
       _showToast("ชำระเงินสำเร็จ กรุณารับสินค้าที่ช่องรับของ");
       clearCart();
+      loadSlots();
     } catch (e) {
       _showToast(e.toString().replaceAll("Exception: ", ""), isError: true);
     }
@@ -177,7 +220,10 @@ class _VendingScreenState extends State<VendingScreen> {
                 child: VendingConsolePanel(
                   cart: cart,
                   paymentMethod: paymentMethod,
-                  onSelectPaymentMethod: (m) => setState(() => paymentMethod = m),
+                  onSelectPaymentMethod: (m) {
+                    setState(() => paymentMethod = m);
+                    _stopPolling();
+                  },
                   activeOrder: activeOrder,
                   isCreatingOrder: isCreatingOrder,
                   onCheckout: handleCheckout,
