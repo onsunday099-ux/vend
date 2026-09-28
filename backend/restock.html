@@ -178,7 +178,7 @@
     <header>
       <div class="title-group">
         <h1>ระบบจัดการและเติมสินค้า (Restock)</h1>
-        <p>แก้ไขข้อมูลสินค้า ราคา และจำนวนสต็อกสินค้าในตู้</p>
+        <p>แก้ไขข้อมูลสินค้า ราคา รูปภาพ และจำนวนสต็อกสินค้าในตู้</p>
       </div>
       <div>
         <button class="btn-add-header" onclick="openAddModal()">+ เพิ่มสินค้าใหม่</button>
@@ -192,13 +192,17 @@
     </div>
   </div>
 
-  <!-- ป็อปอัปเพิ่มสินค้า (ไม่มีช่องให้กรอกรหัส A1, A2 แล้ว) -->
+  <!-- ป็อปอัปเพิ่มสินค้า -->
   <div id="addModal" class="modal-overlay">
     <div class="modal-box">
       <div class="modal-title">+ เพิ่มสินค้าใหม่</div>
       <div class="form-group">
         <label>ชื่อสินค้า</label>
         <input type="text" id="newProductName" placeholder="เช่น ชานมไข่มุก">
+      </div>
+      <div class="form-group">
+        <label>URL รูปภาพ:</label>
+        <input type="text" id="newImageUrl" placeholder="https://..." />
       </div>
       <div class="row-inputs">
         <div class="form-group" style="flex:1;">
@@ -255,7 +259,7 @@
         card.className = "slot-card";
         card.innerHTML = `
           <div class="slot-header">
-            <span class="item-label">สินค้าชิ้นที่ ${index + 1}</span>
+            <span class="item-label">สินค้าชิ้นที่ ${index + 1} (${slot.slot_id})</span>
             <span class="slot-stock-badge ${isOutOfStock ? 'empty' : ''}">
               ${isOutOfStock ? 'สินค้าหมด' : `คงเหลือ ${slot.current_stock} ชิ้น`}
             </span>
@@ -264,6 +268,11 @@
           <div class="form-group">
             <label>ชื่อสินค้า</label>
             <input type="text" id="name-${slot.slot_id}" value="${slot.product_name}">
+          </div>
+
+          <div class="form-group">
+            <label>URL รูปภาพ:</label>
+            <input type="text" id="img-${slot.slot_id}" value="${slot.image_url || ''}" placeholder="https://..." />
           </div>
 
           <div class="row-inputs">
@@ -285,16 +294,16 @@
             <label>จำนวนสต็อกปัจจุบัน</label>
             <input type="number" id="stock-${slot.slot_id}" value="${slot.current_stock}">
             <div class="quick-btns">
-              <button class="btn-quick" onclick="addStock(${slot.slot_id}, 1)">+1</button>
-              <button class="btn-quick" onclick="addStock(${slot.slot_id}, 5)">+5</button>
-              <button class="btn-quick" onclick="addStock(${slot.slot_id}, 10)">+10</button>
-              <button class="btn-quick" onclick="setStock(${slot.slot_id}, 15)">เต็มตู้ (15)</button>
+              <button class="btn-quick" onclick="addStock('${slot.slot_id}', 1)">+1</button>
+              <button class="btn-quick" onclick="addStock('${slot.slot_id}', 5)">+5</button>
+              <button class="btn-quick" onclick="addStock('${slot.slot_id}', 10)">+10</button>
+              <button class="btn-quick" onclick="setStock('${slot.slot_id}', 15)">เต็มตู้ (15)</button>
             </div>
           </div>
 
           <div class="card-actions">
-            <button class="btn-save" onclick="saveSlot(${slot.slot_id})">บันทึกการเปลี่ยนแปลง</button>
-            <button class="btn-delete" onclick="deleteSlot(${slot.slot_id})">ลบ</button>
+            <button class="btn-save" onclick="saveSlot('${slot.slot_id}')">บันทึกการเปลี่ยนแปลง</button>
+            <button class="btn-delete" onclick="deleteSlot('${slot.slot_id}')">ลบ</button>
           </div>
         `;
         container.appendChild(card);
@@ -313,6 +322,7 @@
     async function saveSlot(slotId) {
       const payload = {
         product_name: document.getElementById(`name-${slotId}`).value,
+        image_url: document.getElementById(`img-${slotId}`).value.trim(),
         price: parseFloat(document.getElementById(`price-${slotId}`).value),
         category: document.getElementById(`cat-${slotId}`).value,
         current_stock: parseInt(document.getElementById(`stock-${slotId}`).value)
@@ -325,7 +335,7 @@
           body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error();
-        showToast("บันทึกการเปลี่ยนแปลงเรียบร้อย");
+        showToast("บันทึกสำเร็จ");
         fetchSlots();
       } catch (e) {
         showToast("บันทึกไม่สำเร็จ", true);
@@ -355,6 +365,7 @@
 
     async function submitAddSlot() {
       const productName = document.getElementById('newProductName').value.trim();
+      const imageUrl = document.getElementById('newImageUrl').value.trim();
       const price = parseFloat(document.getElementById('newPrice').value);
       const category = document.getElementById('newCategory').value;
       const stock = parseInt(document.getElementById('newStock').value);
@@ -368,13 +379,20 @@
         const res = await fetch(`${BASE_URL}/api/slots`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_name: productName, price, category, current_stock: stock })
+          body: JSON.stringify({ 
+            product_name: productName, 
+            image_url: imageUrl,
+            price: price, 
+            category: category, 
+            current_stock: stock 
+          })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || "เกิดข้อผิดพลาด");
         showToast("เพิ่มสินค้าสำเร็จ");
         closeAddModal();
         document.getElementById('newProductName').value = '';
+        document.getElementById('newImageUrl').value = '';
         fetchSlots();
       } catch (err) {
         alert(err.message);

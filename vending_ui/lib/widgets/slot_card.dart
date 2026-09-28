@@ -18,7 +18,7 @@ class SlotCard extends StatelessWidget {
 
   IconData _getIcon(String category) {
     if (category.contains("เครื่องดื่ม")) return Icons.local_drink_rounded;
-    if (category.contains("ของว่าง") || category.contains("ขนม")) {
+    if (category.contains("ขนมขบเคี้ยว") || category.contains("ขนม")) {
       return Icons.fastfood_rounded;
     }
     return Icons.inventory_2_rounded;
@@ -48,13 +48,13 @@ class SlotCard extends StatelessWidget {
                   : Colors.black.withOpacity(0.02),
               blurRadius: 4,
               offset: const Offset(0, 1),
-            )
+            ),
           ],
         ),
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Column(
           children: [
-            // แสดงสถานะจำนวนคงเหลือ
+            // แถบแสดงสถานะสต็อก
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -65,7 +65,7 @@ class SlotCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    isOut ? "หมด" : "เหลือ ${slot.currentStock}",
+                    isOut ? "หมด" : "คงเหลือ ${slot.currentStock}",
                     style: TextStyle(
                       fontSize: 8.5,
                       fontWeight: FontWeight.bold,
@@ -77,68 +77,96 @@ class SlotCard extends StatelessWidget {
             ),
             const Spacer(),
 
-            // ไอคอนสินค้า (ขนาดกะทัดรัด)
+            // ส่วนแสดงรูปภาพสินค้า (แสดงรูปจริงจาก URL หรือแสดงไอคอนหากไม่มีรูป)
             Container(
-              width: 34,
-              height: 34,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(6),
                 color: isSelected
                     ? AppColors.consoleRed.withOpacity(0.08)
                     : const Color(0xFFF8FAFC),
               ),
-              child: Icon(
-                _getIcon(slot.category),
-                size: 18,
-                color: isOut
-                    ? Colors.grey[400]
-                    : (isSelected ? AppColors.consoleRed : const Color(0xFF0284C7)),
-              ),
+              clipBehavior: Clip.antiAlias,
+              child: (slot.imageUrl != null && slot.imageUrl!.trim().isNotEmpty)
+                  ? Image.network(
+                      slot.imageUrl!,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        _getIcon(slot.category),
+                        size: 20,
+                        color: isOut
+                            ? Colors.grey[400]
+                            : (isSelected ? AppColors.consoleRed : const Color(0xFF0284C7)),
+                      ),
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return const Center(
+                          child: SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 1.5),
+                          ),
+                        );
+                      },
+                    )
+                  : Icon(
+                      _getIcon(slot.category),
+                      size: 20,
+                      color: isOut
+                          ? Colors.grey[400]
+                          : (isSelected ? AppColors.consoleRed : const Color(0xFF0284C7)),
+                    ),
             ),
-            const SizedBox(height: 3),
+            const Spacer(),
 
             // ชื่อสินค้า
             Text(
               cleanProductName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: isOut ? Colors.grey[400] : AppColors.textDark,
+                fontWeight: FontWeight.w600,
+                color: isOut ? Colors.grey[400] : const Color(0xFF1E293B),
               ),
             ),
             const SizedBox(height: 1),
 
-            // ราคา
+            // ราคาสินค้า
             Text(
               "฿${slot.price.toStringAsFixed(0)}",
               style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                color: isOut ? Colors.grey[400] : AppColors.priceRed,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: isOut ? Colors.grey[400] : AppColors.consoleRed,
               ),
             ),
-            const Spacer(),
+            const SizedBox(height: 2),
 
             // ปุ่มเลือกสินค้า
-            Container(
+            SizedBox(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              decoration: BoxDecoration(
-                color: isOut
-                    ? Colors.grey[200]
-                    : (isSelected ? AppColors.consoleRed : const Color(0xFF0284C7)),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                isOut ? "หมด" : (isSelected ? "✓ เลือก" : "เลือก"),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: isOut ? Colors.grey[500] : Colors.white,
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
+              height: 20,
+              child: ElevatedButton(
+                onPressed: isOut ? null : onToggleSelect,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isSelected
+                      ? AppColors.consoleRed
+                      : const Color(0xFFF1F5F9),
+                  foregroundColor: isSelected ? Colors.white : const Color(0xFF475569),
+                  elevation: 0,
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                child: Text(
+                  isSelected ? "เลือกแล้ว" : (isOut ? "หมด" : "เลือก"),
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),

@@ -1,36 +1,56 @@
 class SlotModel {
-  final int slotId;
-  final String machineCode;
-  final String slotCode;
+  final String slotId;
   final String productName;
-  final String category;
   final double price;
-  final String description;
   final int currentStock;
+  final int maxCapacity;
+  final String category;
+  final String status;
+  final DateTime lastUpdated;
+  final String? imageUrl; // <-- เพิ่มฟิลด์ imageUrl
 
   SlotModel({
     required this.slotId,
-    required this.machineCode,
-    required this.slotCode,
     required this.productName,
-    required this.category,
     required this.price,
-    required this.description,
     required this.currentStock,
+    required this.maxCapacity,
+    required this.category,
+    required this.status,
+    required this.lastUpdated,
+    this.imageUrl,
   });
-
-  bool get isOutOfStock => currentStock <= 0;
 
   factory SlotModel.fromJson(Map<String, dynamic> json) {
     return SlotModel(
-      slotId: json['slot_id'] ?? 0,
-      machineCode: json['machine_code'] ?? '',
-      slotCode: json['slot_code'] ?? '',
-      productName: json['product_name'] ?? 'ไม่มีชื่อสินค้า',
-      category: json['category'] ?? 'ทั่วไป',
+      slotId: json['slot_id'] ?? '',
+      productName: json['product_name'] ?? '',
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
-      description: json['description'] ?? '',
       currentStock: json['current_stock'] ?? 0,
+      maxCapacity: json['max_capacity'] ?? 10,
+      category: json['category'] ?? '',
+      status: json['status'] ?? 'NORMAL',
+      lastUpdated: json['last_updated'] != null
+          ? DateTime.parse(json['last_updated'])
+          : DateTime.now(),
+      imageUrl: json['image_url'] as String?, // <-- รับค่า image_url จาก Backend
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'slot_id': slotId,
+      'product_name': productName,
+      'price': price,
+      'current_stock': currentStock,
+      'max_capacity': maxCapacity,
+      'category': category,
+      'status': status,
+      'image_url': imageUrl,
+      'last_updated': lastUpdated.toIso8601String(),
+    };
+  }
+
+  bool get isOutOfStock => currentStock <= 0;
+  bool get isFaulty => status == 'FAULTY';
 }

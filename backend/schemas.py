@@ -1,51 +1,60 @@
-from typing import List, Optional
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, List
+from datetime import datetime
 
-from pydantic import BaseModel
-
+# --- SLOT SCHEMAS ---
 class SlotCreate(BaseModel):
     product_name: str
-    price: float = 20.0
-    category: str = "เครื่องดื่ม"
-    description: str = ""
-    current_stock: int = 15
+    price: float
+    category: str
+    current_stock: int
+    image_url: Optional[str] = ""  
+    description: Optional[str] = ""
+
+class SlotCreate(SlotBase):
+    slot_id: str
 
 class SlotUpdate(BaseModel):
     product_name: str
     price: float
     category: str
-    description: str = ""
     current_stock: int
+    image_url: Optional[str] = "" 
+    description: Optional[str] = ""
 
-class SlotOut(BaseModel):
-    slot_id: int
-    machine_code: str
-    slot_code: str
+class SlotRestock(BaseModel):
+    quantity: int
+
+class SlotResponse(SlotBase):
+    slot_id: str
+    last_updated: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- ORDER SCHEMAS ---
+class OrderItem(BaseModel):
+    slot_id: str
+    quantity: int
+
+class OrderCreate(BaseModel):
+    items: List[OrderItem]
+    payment_method: str  # PROMPTPAY, CASH, CREDIT_CARD
+
+class SingleOrderResponse(BaseModel):
+    order_id: str
+    slot_id: str
     product_name: str
-    category: str
     price: float
-    description: str
-    current_stock: int
-    image_url: str
+    quantity: int
+    total_amount: float
+    payment_method: str
+    status: str
+    timestamp: datetime
 
-class CartLine(BaseModel):
-    slot_id: int
-    qty: int = 1
-
-class CartCheckout(BaseModel):
-    items: List[CartLine]
-    payment_method: str = "promptpay_qr"  # promptpay_qr | cash
-
-class OrderItemOut(BaseModel):
-    slot_code: str
-    product_name: str
-    qty: int
-    unit_price: float
+    model_config = ConfigDict(from_attributes=True)
 
 class OrderResponse(BaseModel):
-    order_no: str
-    machine_code: str
-    items: List[OrderItemOut]
-    amount: float
-    payment_method: str
-    qr_payload: Optional[str] = None
-    status: str
+    message: str
+    orders: List[SingleOrderResponse]
+    grand_total: float

@@ -56,15 +56,18 @@ async def add_slot(data: SlotCreate, db: Session = Depends(get_db)):
 async def update_slot(slot_id: int, data: SlotUpdate, db: Session = Depends(get_db)):
     slot = db.get(MachineSlot, slot_id)
     if not slot:
-        raise HTTPException(status_code=404, detail="ไม่พบรายการนี้")
+        raise HTTPException(status_code=404, detail="Slot not found")
+    
     slot.current_stock = data.current_stock
     slot.product.name = data.product_name
     slot.product.price = data.price
     slot.product.category = data.category
-    slot.product.description = data.description
+    if data.image_url is not None:
+        slot.product.image_url = data.image_url  # <-- เพิ่มบันทึกรูป
+    
     db.commit()
     await broadcast_stock(db)
-    return {"status": "success", "message": "อัปเดตข้อมูลสำเร็จ"}
+    return {"status": "success", "message": "Updated successfully"}
 
 @router.delete("/api/slots/{slot_id}")
 async def delete_slot(slot_id: int, db: Session = Depends(get_db)):
