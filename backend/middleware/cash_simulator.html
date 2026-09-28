@@ -2,83 +2,128 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <title>Cash Acceptor Simulator</title>
+  <title>จำลองการหยอดเงิน (Cash Acceptor)</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: #f8fafc; color: #0f172a; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
-    .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.03); width: 100%; max-width: 440px; padding: 28px; }
-    h1 { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 20px; }
-    .status-panel { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 24px; }
-    .row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; color: #64748b; }
-    .row:last-child { margin-bottom: 0; }
-    .row strong { color: #0f172a; font-size: 16px; }
-    .badge { padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; background: #e2e8f0; color: #475569; }
-    .badge.active { background: #dcfce7; color: #15803d; }
-    .label { font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-bottom: 10px; }
-    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
-    .btn { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px 0; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.15s; }
-    .btn:hover { background: #f1f5f9; border-color: #94a3b8; }
-    .btn-cancel { width: 100%; background: #fff1f2; border: 1px solid #fecdd3; color: #e11d48; border-radius: 12px; padding: 12px; font-weight: 600; cursor: pointer; }
-    .btn-cancel:hover { background: #ffe4e6; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+    .card { background: white; width: 360px; padding: 24px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.06); text-align: center; }
+    h2 { font-size: 18px; color: #1e293b; margin-bottom: 20px; }
+    .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 16px; text-align: left; }
+    .row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+    .val { font-weight: bold; }
+    .val.primary { color: #2563eb; font-size: 18px; }
+    .val.green { color: #16a34a; font-size: 18px; }
+    .status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+    .status-idle { background: #e2e8f0; color: #64748b; }
+    .status-active { background: #dbeafe; color: #1e40af; }
+    .status-done { background: #dcfce7; color: #15803d; }
+    .btn-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+    button { background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 4px; font-weight: bold; font-size: 14px; cursor: pointer; transition: all 0.1s; }
+    button:hover:not(:disabled) { background: #2563eb; color: white; border-color: #2563eb; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-cancel { width: 100%; margin-top: 16px; background: #fff1f2; color: #e11d48; border-color: #fecdd3; padding: 10px; border-radius: 10px; }
+    .btn-cancel:hover:not(:disabled) { background: #e11d48; color: white; }
   </style>
 </head>
 <body>
+
 <div class="card">
-  <h1>จำลองการหยอดเงิน (Cash Acceptor)</h1>
-  <div class="status-panel">
-    <div class="row"><span>สถานะ:</span><span id="badge" class="badge">ไม่มีรายการ</span></div>
-    <div class="row"><span>ยอดที่ต้องชำระ:</span><strong id="amountDue">฿0</strong></div>
-    <div class="row"><span>ยอดที่หยอดแล้ว:</span><strong id="amountInserted" style="color:#2563eb">฿0</strong></div>
-    <div class="row"><span>เงินทอน:</span><strong id="changeDue" style="color:#10b981">฿0</strong></div>
+  <h2>จำลองการหยอดเงิน (Cash Acceptor)</h2>
+  <div class="info-box">
+    <div class="row">
+      <span>สถานะ:</span>
+      <span id="statusBadge" class="status-badge status-idle">ไม่มีรายการ</span>
+    </div>
+    <div class="row">
+      <span>ยอดที่ต้องชำระ:</span>
+      <span id="amountDue" class="val primary">฿0</span>
+    </div>
+    <div class="row">
+      <span>ยอดที่หยอดแล้ว:</span>
+      <span id="amountInserted" class="val green">฿0</span>
+    </div>
+    <div class="row" style="margin-bottom: 0;">
+      <span>เงินทอน:</span>
+      <span id="change" class="val">฿0</span>
+    </div>
   </div>
 
-  <div class="label">หยอดเหรียญ</div>
-  <div class="grid">
-    <button class="btn" onclick="insert(1)">1฿</button>
-    <button class="btn" onclick="insert(2)">2฿</button>
-    <button class="btn" onclick="insert(5)">5฿</button>
-    <button class="btn" onclick="insert(10)">10฿</button>
+  <div style="font-size: 13px; color: #64748b; text-align: left; margin-bottom: 4px;">หยอดเหรียญ</div>
+  <div class="btn-grid">
+    <button class="cash-btn" onclick="insertCash(1)">1฿</button>
+    <button class="cash-btn" onclick="insertCash(2)">2฿</button>
+    <button class="cash-btn" onclick="insertCash(5)">5฿</button>
+    <button class="cash-btn" onclick="insertCash(10)">10฿</button>
   </div>
 
-  <div class="label">สอดธนบัตร</div>
-  <div class="grid">
-    <button class="btn" onclick="insert(20)">20฿</button>
-    <button class="btn" onclick="insert(50)">50฿</button>
-    <button class="btn" onclick="insert(100)">100฿</button>
-    <button class="btn" onclick="insert(500)">500฿</button>
+  <div style="font-size: 13px; color: #64748b; text-align: left; margin-top: 12px; margin-bottom: 4px;">สอดธนบัตร</div>
+  <div class="btn-grid">
+    <button class="cash-btn" onclick="insertCash(20)">20฿</button>
+    <button class="cash-btn" onclick="insertCash(50)">50฿</button>
+    <button class="cash-btn" onclick="insertCash(100)">100฿</button>
+    <button class="cash-btn" onclick="insertCash(500)">500฿</button>
   </div>
 
-  <button class="btn-cancel" onclick="cancel()">ยกเลิกและคืนเงิน</button>
+  <button id="cancelBtn" class="btn-cancel" onclick="cancelSession()" disabled>ยกเลิกและคืนเงิน</button>
 </div>
 
 <script>
-  const API = "http://127.0.0.1:8080/api/middleware/cash";
-  async function update() {
-    try {
-      const res = await fetch(`${API}/status`);
-      const d = await res.json();
-      const b = document.getElementById("badge");
-      b.innerText = d.is_active ? "กำลังรับเงิน" : "ไม่มีรายการ";
-      b.className = d.is_active ? "badge active" : "badge";
-      document.getElementById("amountDue").innerText = `฿${d.amount_due}`;
-      document.getElementById("amountInserted").innerText = `฿${d.amount_inserted}`;
-      document.getElementById("changeDue").innerText = `฿${d.change_due}`;
-    } catch (_) {}
+  let ws;
+  let isActive = false;
+
+  function connect() {
+    ws = new WebSocket("ws://" + window.location.host + "/api/cash/ws");
+
+    ws.onmessage = function(event) {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "cash_update") {
+        updateUI(msg.data);
+      }
+    };
+
+    ws.onclose = function() {
+      setTimeout(connect, 1500); // Reconnect เมื่อหลุด
+    };
   }
-  async function insert(amount) {
-    await fetch(`${API}/insert`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount })
-    });
-    update();
+
+  function updateUI(data) {
+    isActive = data.isActive;
+    document.getElementById("amountDue").innerText = "฿" + data.amountDue;
+    document.getElementById("amountInserted").innerText = "฿" + data.amountInserted;
+    document.getElementById("change").innerText = "฿" + data.change;
+
+    const badge = document.getElementById("statusBadge");
+    const cancelBtn = document.getElementById("cancelBtn");
+    const buttons = document.querySelectorAll(".cash-btn");
+
+    if (!data.isActive) {
+      badge.className = "status-badge status-idle";
+      badge.innerText = "ไม่มีรายการ";
+      cancelBtn.disabled = true;
+      buttons.forEach(b => b.disabled = true);
+    } else if (data.isCompleted) {
+      badge.className = "status-badge status-done";
+      badge.innerText = "ชำระเงินสำเร็จ!";
+      cancelBtn.disabled = true;
+      buttons.forEach(b => b.disabled = true);
+    } else {
+      badge.className = "status-badge status-active";
+      badge.innerText = "กำลังรอรับเงิน...";
+      cancelBtn.disabled = false;
+      buttons.forEach(b => b.disabled = false);
+    }
   }
-  async function cancel() {
-    await fetch(`${API}/cancel`, { method: "POST" });
-    update();
+
+  function insertCash(val) {
+    if (!ws || !isActive) return;
+    ws.send(JSON.stringify({ action: "insert_cash", amount: val }));
   }
-  setInterval(update, 1000);
-  update();
+
+  function cancelSession() {
+    if (!ws) return;
+    ws.send(JSON.stringify({ action: "cancel_session" }));
+  }
+
+  connect();
 </script>
 </body>
 </html>

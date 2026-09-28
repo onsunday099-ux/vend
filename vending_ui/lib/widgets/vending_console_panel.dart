@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../config/app_colors.dart';
 import '../models/cart_item_model.dart';
 import '../models/order_model.dart';
@@ -7,7 +6,7 @@ import '../models/order_model.dart';
 class VendingConsolePanel extends StatelessWidget {
   final List<CartItemModel> cart;
   final String paymentMethod;
-  final Function(String) onSelectPaymentMethod;
+  final ValueChanged<String> onSelectPaymentMethod;
   final bool isCreatingOrder;
   final OrderModel? activeOrder;
   final double enteredAmount;
@@ -16,7 +15,7 @@ class VendingConsolePanel extends StatelessWidget {
   final VoidCallback onCancelOrder;
 
   const VendingConsolePanel({
-    super.key,
+    Key? key,
     required this.cart,
     required this.paymentMethod,
     required this.onSelectPaymentMethod,
@@ -26,373 +25,188 @@ class VendingConsolePanel extends StatelessWidget {
     required this.onCheckout,
     required this.onClearCart,
     required this.onCancelOrder,
-  });
+  }) : super(key: key);
 
-  double get totalAmount => cart.fold(0, (sum, i) => sum + i.totalPrice);
-
-  Widget _buildPaymentArea() {
-    if (isCreatingOrder) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
-      );
+  // คำนวณยอดเงินรวมในตะกร้า
+  double get totalAmount {
+    double sum = 0.0;
+    for (var item in cart) {
+      sum += (item.slot.price * item.quantity).toDouble();
     }
-
-    if (activeOrder != null) {
-      if (activeOrder!.isCash) {
-        return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              "ยอดที่ต้องชำระ",
-              style: TextStyle(fontSize: 11, color: AppColors.textDark, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              "฿${activeOrder!.amount.toStringAsFixed(0)}",
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.primary),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                "ใส่เงินแล้ว: ฿${enteredAmount.toStringAsFixed(0)}",
-                style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              height: 36,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onPressed: onCancelOrder,
-                child: const Text(
-                  "ยกเลิกรายการ",
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        );
-      } else {
-        return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (activeOrder!.qrPayload != null)
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.cardBorder),
-                ),
-                child: QrImageView(
-                  data: activeOrder!.qrPayload!,
-                  size: 100,
-                  padding: EdgeInsets.zero,
-                ),
-              ),
-            const SizedBox(height: 8),
-            Text(
-              "สแกนจ่าย ฿${activeOrder!.amount.toStringAsFixed(0)}",
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              height: 36,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onPressed: onCancelOrder,
-                child: const Text(
-                  "ยกเลิกรายการ",
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        );
-      }
-    }
-
-    if (paymentMethod == 'cash') {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              color: AppColors.primaryLight,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.payments_outlined,
-              size: 32,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            "ใส่ธนบัตรหรือหยอดเหรียญ\nที่ช่องรับด้านล่าง",
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: AppColors.textDark, height: 1.3),
-          ),
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            height: 36,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: cart.isEmpty ? null : onCheckout,
-              child: const Text(
-                "ชำระด้วยเงินสด",
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: const BoxDecoration(
-            color: AppColors.primaryLight,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.qr_code_2_rounded,
-            size: 32,
-            color: AppColors.primary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          "กดปุ่มด้านล่าง\nเพื่อสร้าง QR Code",
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 11, color: AppColors.textMuted, height: 1.3),
-        ),
-        const Spacer(),
-        SizedBox(
-          width: double.infinity,
-          height: 36,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            onPressed: cart.isEmpty ? null : onCheckout,
-            child: const Text(
-              "สร้าง QR สแกนจ่าย",
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-      ],
-    );
+    return sum;
   }
 
   @override
   Widget build(BuildContext context) {
+    final bool hasOrder = activeOrder != null;
+    final double dueAmount = totalAmount;
+    final double remainingAmount = (dueAmount - enteredAmount) > 0 ? (dueAmount - enteredAmount) : 0.0;
+    final double changeAmount = (enteredAmount - dueAmount) > 0 ? (enteredAmount - dueAmount) : 0.0;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.cardBorder, width: 1.5),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.cardBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "ยอดชำระทั้งหมด",
-                      style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
+          // 1. หัวข้อ: ยอดชำระทั้งหมด
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "ยอดชำระทั้งหมด",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
                     ),
-                    Icon(Icons.shopping_bag_outlined, color: AppColors.primary, size: 16),
-                  ],
+                  ),
+                  Text(
+                    "฿${dueAmount.toStringAsFixed(0)}",
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  "฿${totalAmount.toStringAsFixed(0)}",
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
+                child: const Icon(
+                  Icons.shopping_bag_outlined,
+                  color: AppColors.primary,
+                  size: 24,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 10),
+
+          // 2. รายการสินค้าในตะกร้า
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "รายการ (${cart.length})",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Color(0xFF334155),
+                ),
+              ),
+              if (cart.isNotEmpty && !hasOrder)
+                GestureDetector(
+                  onTap: onClearCart,
+                  child: const Text(
+                    "ล้าง",
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            height: 115,
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.cardBorder),
-            ),
+          const SizedBox(height: 6),
+
+          // รายการสินค้า (ดึงชื่อและรหัสช่องผ่าน item.slot อย่างถูกต้อง)
+          Expanded(
+            flex: 2,
             child: cart.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
                       "แตะเลือกสินค้าจากจอซ้าย",
-                      style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                      style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                     ),
                   )
-                : Column(
-                    children: [
-                      Row(
+                : ListView.separated(
+                    itemCount: cart.length,
+                    separatorBuilder: (_, __) => Divider(height: 8, color: Colors.grey.shade100),
+                    itemBuilder: (context, index) {
+                      final item = cart[index];
+                      // ดึงชื่อสินค้าจาก item.slot.productName หรือ item.slot.name
+                      final String pName = item.slot.productName;
+                      final String sId = item.slot.slotId;
+
+                      return Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            "รายการ (${cart.length})",
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                          GestureDetector(
-                            onTap: activeOrder == null ? onClearCart : null,
+                          Expanded(
                             child: Text(
-                              "ล้าง",
-                              style: TextStyle(
-                                color: activeOrder == null ? Colors.redAccent : Colors.grey,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              "$pName ($sId) x${item.quantity}",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                             ),
                           ),
-                        ],
-                      ),
-                      const Divider(height: 8),
-                      Expanded(
-                        child: ScrollConfiguration(
-                          behavior: const ScrollBehavior().copyWith(scrollbars: false),
-                          child: ListView.builder(
-                            padding: const EdgeInsets.only(right: 6),
-                            itemCount: cart.length,
-                            itemBuilder: (_, i) {
-                              final item = cart[i];
-                              final cleanName = item.slot.productName.split('#').first.trim();
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 2.5),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        cleanName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-                                      ),
-                                    ),
-                                    Text(
-                                      "฿${item.slot.price.toStringAsFixed(0)}",
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.priceRed,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                  ],
-                                ),
-                              );
-                            },
+                          Text(
+                            "฿${(item.slot.price * item.quantity).toStringAsFixed(0)}",
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                           ),
-                        ),
-                      ),
-                    ],
+                        ],
+                      );
+                    },
                   ),
           ),
-          const SizedBox(height: 12),
+
+          const SizedBox(height: 8),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+
+          // 3. แถบเลือกวิธีชำระเงิน (เงินสด / QR Code)
           const Text(
             "เลือกวิธีชำระเงิน",
-            style: TextStyle(color: AppColors.textDark, fontSize: 11, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
           ),
           const SizedBox(height: 6),
           Row(
             children: [
               Expanded(
                 child: InkWell(
-                  onTap: activeOrder == null ? () => onSelectPaymentMethod('cash') : null,
-                  borderRadius: BorderRadius.circular(8),
+                  onTap: hasOrder ? null : () => onSelectPaymentMethod('cash'),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: paymentMethod == 'cash' ? AppColors.primary : Colors.white,
+                      color: paymentMethod == 'cash' ? AppColors.primary : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: paymentMethod == 'cash' ? AppColors.primary : AppColors.cardBorder,
-                      ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.payments_outlined,
-                          size: 15,
-                          color: paymentMethod == 'cash' ? Colors.white : AppColors.textDark,
+                          size: 16,
+                          color: paymentMethod == 'cash' ? Colors.white : Colors.grey.shade700,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           "เงินสด",
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: paymentMethod == 'cash' ? Colors.white : AppColors.textDark,
+                            color: paymentMethod == 'cash' ? Colors.white : Colors.grey.shade700,
                           ),
                         ),
                       ],
@@ -403,32 +217,28 @@ class VendingConsolePanel extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: InkWell(
-                  onTap: activeOrder == null ? () => onSelectPaymentMethod('qr') : null,
-                  borderRadius: BorderRadius.circular(8),
+                  onTap: hasOrder ? null : () => onSelectPaymentMethod('qr'),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: paymentMethod == 'qr' ? AppColors.primary : Colors.white,
+                      color: paymentMethod == 'qr' ? AppColors.primary : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: paymentMethod == 'qr' ? AppColors.primary : AppColors.cardBorder,
-                      ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.qr_code_2_rounded,
-                          size: 15,
-                          color: paymentMethod == 'qr' ? Colors.white : AppColors.textDark,
+                          size: 16,
+                          color: paymentMethod == 'qr' ? Colors.white : Colors.grey.shade700,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           "สแกน QR",
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: paymentMethod == 'qr' ? Colors.white : AppColors.textDark,
+                            color: paymentMethod == 'qr' ? Colors.white : Colors.grey.shade700,
                           ),
                         ),
                       ],
@@ -438,23 +248,123 @@ class VendingConsolePanel extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+
+          const SizedBox(height: 10),
+
+          // 4. พื้นที่แสดงสถานะการชำระเงิน
           Expanded(
+            flex: 3,
             child: Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.cardBorder),
+                border: Border.all(color: Colors.grey.shade200),
               ),
-              child: _buildPaymentArea(),
+              child: paymentMethod == 'cash'
+                  ? (hasOrder
+                      // เมื่อเริ่มมีคำสั่งซื้อและรอหยอดเงินสด
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const CircularProgressIndicator(strokeWidth: 3),
+                            const SizedBox(height: 10),
+                            const Text(
+                              "กำลังรอรับธนบัตร / เหรียญ...",
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              "หยอดแล้ว: ฿${enteredAmount.toStringAsFixed(0)}",
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.green,
+                              ),
+                            ),
+                            if (changeAmount > 0)
+                              Text(
+                                "เงินทอน: ฿${changeAmount.toStringAsFixed(0)}",
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue),
+                              )
+                            else
+                              Text(
+                                "คงเหลือ: ฿${remainingAmount.toStringAsFixed(0)}",
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.point_of_sale_rounded, size: 36, color: AppColors.primary),
+                            const SizedBox(height: 6),
+                            const Text(
+                              "ใส่ธนบัตรหรือหยอดเหรียญ\nที่ช่องรับด้านล่าง",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                            ),
+                          ],
+                        ))
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.qr_code_scanner_rounded, size: 40, color: AppColors.primary),
+                        const SizedBox(height: 6),
+                        Text(
+                          hasOrder ? "พร้อมสแกน Dynamic QR" : "กดปุ่มด้านล่างเพื่อสร้าง QR",
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
             ),
           ),
-          const SizedBox(height: 12),
+
+          const SizedBox(height: 10),
+
+          // 5. ปุ่มแอ็กชัน (ชำระเงิน หรือ ยกเลิกคำสั่งซื้อ)
+          if (hasOrder)
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: onCancelOrder,
+              child: const Text(
+                "ยกเลิกคำสั่งซื้อ",
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+            )
+          else
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              onPressed: (cart.isEmpty || isCreatingOrder) ? null : onCheckout,
+              child: isCreatingOrder
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : Text(
+                      paymentMethod == 'cash' ? "ชำระด้วยเงินสด" : "สร้าง QR ชำระเงิน",
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+            ),
+
+          const SizedBox(height: 6),
+
+          // 6. ข้อความแนะนำขั้นตอน
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.primaryLight.withOpacity(0.5),
+              color: Colors.blue.shade50,
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Column(
@@ -462,16 +372,12 @@ class VendingConsolePanel extends StatelessWidget {
               children: [
                 Text(
                   "ขั้นตอนการสั่งซื้อ",
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary),
                 ),
-                SizedBox(height: 3),
+                SizedBox(height: 2),
                 Text(
                   "1. แตะเลือกสินค้าที่ต้องการ\n2. เลือกชำระเงิน (เงินสด หรือ QR)\n3. รับสินค้าเมื่อชำระสำเร็จ",
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, height: 1.3),
+                  style: TextStyle(fontSize: 9, color: Color(0xFF475569), height: 1.3),
                 ),
               ],
             ),
