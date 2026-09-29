@@ -20,6 +20,10 @@
     button { background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 4px; font-weight: bold; font-size: 14px; cursor: pointer; transition: all 0.1s; }
     button:hover:not(:disabled) { background: #2563eb; color: white; border-color: #2563eb; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-qr { width: 100%; margin-top: 4px; background: #0f766e; color: white; border-color: #0f766e; padding: 14px; border-radius: 10px; font-size: 15px; }
+    .btn-qr:hover:not(:disabled) { background: #115e59; border-color: #115e59; }
+    .section-label { font-size: 13px; color: #64748b; text-align: left; margin-top: 12px; margin-bottom: 4px; }
+    .order-no { font-size: 12px; color: #64748b; margin-bottom: 10px; }
     .btn-cancel { width: 100%; margin-top: 16px; background: #fff1f2; color: #e11d48; border-color: #fecdd3; padding: 10px; border-radius: 10px; }
     .btn-cancel:hover:not(:disabled) { background: #e11d48; color: white; }
   </style>
@@ -27,7 +31,8 @@
 <body>
 
 <div class="card">
-  <h2>จำลองการหยอดเงิน (Cash Acceptor)</h2>
+  <h2>จำลองตัวรับเงิน (Cash / QR)</h2>
+  <div class="order-no" id="orderNo">ออเดอร์: -</div>
   <div class="info-box">
     <div class="row">
       <span>สถานะ:</span>
@@ -63,6 +68,9 @@
     <button class="cash-btn" onclick="insertCash(500)">500฿</button>
   </div>
 
+  <div class="section-label">ชำระด้วย QR PromptPay</div>
+  <button id="qrBtn" class="btn-qr" onclick="payQr()" disabled>📱 จำลองสแกนจ่าย QR</button>
+
   <button id="cancelBtn" class="btn-cancel" onclick="cancelSession()" disabled>ยกเลิกและคืนเงิน</button>
 </div>
 
@@ -71,7 +79,7 @@
   let isActive = false;
 
   function connect() {
-    ws = new WebSocket("ws://" + window.location.host + "/api/cash/ws");
+    ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + window.location.host + "/api/cash/ws");
 
     ws.onmessage = function(event) {
       const msg = JSON.parse(event.data);
@@ -87,30 +95,37 @@
 
   function updateUI(data) {
     isActive = data.isActive;
+    const waiting = data.status === "waiting" && !data.isCompleted;
+    const isCash = data.mode === "cash";
+    document.getElementById("orderNo").innerText = "ออเดอร์: " + (data.orderNo || "-") + (data.isActive ? (isCash ? "  (เงินสด)" : "  (QR)") : "");
     document.getElementById("amountDue").innerText = "฿" + data.amountDue;
-    document.getElementById("amountInserted").innerText = "฿" + data.amountInserted;
+    document.getElementById("amountInserted").innerText = "฿" + (isCash ? data.amountInserted : (data.status === "paid" ? data.amountDue : 0));
     document.getElementById("change").innerText = "฿" + data.change;
 
     const badge = document.getElementById("statusBadge");
     const cancelBtn = document.getElementById("cancelBtn");
-    const buttons = document.querySelectorAll(".cash-btn");
+    const cashButtons = document.querySelectorAll(".cash-btn");
+    const qrBtn = document.getElementById("qrBtn");
+
+    cashButtons.forEach(b => b.disabled = !(waiting && isCash));
+    qrBtn.disabled = !(waiting && !isCash);
+    cancelBtn.disabled = !(data.status === "waiting" && !data.isCompleted);
 
     if (!data.isActive) {
       badge.className = "status-badge status-idle";
       badge.innerText = "ไม่มีรายการ";
-      cancelBtn.disabled = true;
-      buttons.forEach(b => b.disabled = true);
     } else if (data.isCompleted) {
       badge.className = "status-badge status-done";
       badge.innerText = "ชำระเงินสำเร็จ!";
-      cancelBtn.disabled = true;
-      buttons.forEach(b => b.disabled = true);
     } else {
       badge.className = "status-badge status-active";
-      badge.innerText = "กำลังรอรับเงิน...";
-      cancelBtn.disabled = false;
-      buttons.forEach(b => b.disabled = false);
+      badge.innerText = isCash ? "กำลังรอรับเงิน..." : "รอสแกน QR...";
     }
+  }
+
+  function payQr() {
+    if (!ws || !isActive) return;
+    ws.send(JSON.stringify({ action: "pay_qr" }));
   }
 
   function insertCash(val) {

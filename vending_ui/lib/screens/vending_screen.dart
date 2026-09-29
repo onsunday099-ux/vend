@@ -100,8 +100,11 @@ class _VendingScreenState extends State<VendingScreen> {
     });
   }
 
-  void cancelActiveOrder() {
+  void cancelActiveOrder({bool notifyServer = true}) {
     _pollingTimer?.cancel();
+    if (notifyServer && activeOrder != null) {
+      ApiService.cancelOrder(activeOrder!.orderNo);
+    }
     setState(() {
       activeOrder = null;
       enteredAmount = 0.0;
@@ -126,33 +129,13 @@ class _VendingScreenState extends State<VendingScreen> {
       final items = cart.map((c) => {'slot_id': c.slot.slotId, 'qty': c.quantity}).toList();
       final apiPaymentMethod = paymentMethod == 'cash' ? 'cash' : 'promptpay_qr';
 
-      OrderModel order;
-      try {
-        order = await ApiService.checkout(
-          items: items,
-          paymentMethod: apiPaymentMethod,
-        );
-        if (paymentMethod == 'cash') {
-          final int totalDue = (order.amount).toInt();
-          await ApiService.startCashSession(order.orderNo, totalDue);
-        }
-      } catch (_) {
-        order = OrderModel(
-          orderNo: "ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}",
-          machineCode: "M01",
-          items: cart
-              .map((c) => OrderItemModel(
-                    slotCode: c.slot.slotId,
-                    productName: c.slot.productName,
-                    qty: c.quantity,
-                    unitPrice: c.slot.price,
-                  ))
-              .toList(),
-          amount: cart.fold(0.0, (sum, item) => sum + item.totalPrice),
-          paymentMethod: apiPaymentMethod,
-          qrPayload: "00020101021229370016A000000677010111011300668123456785802TH530376454010.006304ABCD",
-          status: "PENDING",
-        );
+      // ต้องสร้างออเดอร์กับ backend ได้จริงเท่านั้น (ไม่มีการจำลองจ่ายเงินเองในแอปอีกต่อไป)
+      final order = await ApiService.checkout(
+        items: items,
+        paymentMethod: apiPaymentMethod,
+      );
+      if (paymentMethod == 'cash') {
+        await ApiService.startCashSession(order.orderNo, order.amount.toInt());
       }
 
       if (!mounted) return;
@@ -173,30 +156,6 @@ class _VendingScreenState extends State<VendingScreen> {
   void _startPolling() {
     if (activeOrder == null) return;
 
-    if (activeOrder!.orderNo.startsWith("ORD-")) {
-      int count = 0;
-      _pollingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (!mounted || activeOrder == null) {
-          timer.cancel();
-          return;
-        }
-        setState(() {
-          if (activeOrder!.isCash) {
-            enteredAmount += activeOrder!.amount / 5;
-            if (enteredAmount > activeOrder!.amount) {
-              enteredAmount = activeOrder!.amount;
-            }
-          }
-        });
-        count++;
-        if (count >= 5) {
-          timer.cancel();
-          _completeOrder();
-        }
-      });
-      return;
-    }
-
     if (activeOrder!.isCash) {
       _pollingTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
         try {
@@ -208,6 +167,12 @@ class _VendingScreenState extends State<VendingScreen> {
           setState(() {
             enteredAmount = (status['amount_inserted'] as num?)?.toDouble() ?? 0.0;
           });
+          if (status['order_status'] == 'CANCELLED') {
+            timer.cancel();
+            cancelActiveOrder(notifyServer: false);
+            _showToast("ยกเลิกรายการที่ตัวรับเงินแล้ว", isError: true);
+            return;
+          }
           if (status['is_completed'] == true) {
             timer.cancel();
             await ApiService.completeCashOrder(activeOrder!.orderNo);
@@ -223,9 +188,13 @@ class _VendingScreenState extends State<VendingScreen> {
             timer.cancel();
             return;
           }
-          if (res['status'] == 'PAID' || res['status'] == 'SUCCESS') {
+          if (res['status'] == 'PAID') {
             timer.cancel();
             _completeOrder();
+          } else if (res['status'] == 'CANCELLED') {
+            timer.cancel();
+            cancelActiveOrder(notifyServer: false);
+            _showToast("รายการถูกยกเลิก", isError: true);
           }
         } catch (_) {}
       });
@@ -279,7 +248,7 @@ class _VendingScreenState extends State<VendingScreen> {
                   enteredAmount: enteredAmount,
                   onCheckout: handleCheckout,
                   onClearCart: clearCart,
-                  onCancelOrder: cancelActiveOrder,
+                  onCancelOrder: () => cancelActiveOrder(),
                 ),
               ),
             ],

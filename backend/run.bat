@@ -1,10 +1,7 @@
 @echo off
 echo Starting Vending Machine System...
-
-REM สั่งรัน Cash Middleware ในหน้าต่างใหม่ 
-start "Cash Middleware" cmd /c "cd middleware && python cash_middleware.py"
-
-REM สั่งรัน Backend 
+echo  - Backend + Cash Middleware : http://127.0.0.1:8000
+echo  - Cash Simulator (ตัวรับเงิน) : http://127.0.0.1:8000/cash-simulator
+echo  - Restock                    : http://127.0.0.1:8000/restock
 uvicorn main:app --reload --port 8000
-
 pause

@@ -1,5 +1,6 @@
 class SlotModel {
   final String slotId;
+  final String code; // รหัสช่อง เช่น A1
   final String productName;
   final double price;
   final int currentStock;
@@ -11,10 +12,11 @@ class SlotModel {
   int get stock => currentStock;
   String get name => productName;
   String get id => slotId;
-  String get slotCode => slotId;
+  String get slotCode => code.isNotEmpty ? code : slotId;
 
   SlotModel({
     required this.slotId,
+    this.code = '',
     required this.productName,
     required this.price,
     required this.currentStock,
@@ -27,7 +29,8 @@ class SlotModel {
 
   factory SlotModel.fromJson(Map<String, dynamic> json) {
     return SlotModel(
-      slotId: json['slot_id'] ?? '',
+      slotId: json['slot_id']?.toString() ?? '',
+      code: json['slot_code']?.toString() ?? '',
       productName: json['product_name'] ?? '',
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
       currentStock: json['current_stock'] ?? 0,
@@ -44,6 +47,7 @@ class SlotModel {
   Map<String, dynamic> toJson() {
     return {
       'slot_id': slotId,
+      'slot_code': code,
       'product_name': productName,
       'price': price,
       'current_stock': currentStock,

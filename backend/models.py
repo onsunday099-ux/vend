@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from database import Base
 
+
 class Product(Base):
     __tablename__ = "products"
 
@@ -10,10 +11,11 @@ class Product(Base):
     name = Column(String, index=True)
     category = Column(String)
     price = Column(Float)
-    image_url = Column(String, default="")  # เก็บ URL รูปภาพ
+    image_url = Column(String, default="")
     description = Column(Text, default="")
 
     slots = relationship("MachineSlot", back_populates="product")
+
 
 class MachineSlot(Base):
     __tablename__ = "machine_slots"
@@ -27,39 +29,31 @@ class MachineSlot(Base):
 
     product = relationship("Product", back_populates="slots")
 
+
 class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True)
     order_no = Column(String, unique=True, index=True)
-    total_amount = Column(Float, default=0.0)
-    payment_method = Column(String)  # CASH, PROMPTPAY
-    status = Column(String, default="PENDING")  # PENDING, PAID, CANCELLED
+    machine_code = Column(String, default="")
+    amount = Column(Float, default=0.0)
+    payment_method = Column(String)          # cash | promptpay_qr
+    status = Column(String, default="PENDING")  # PENDING | PAID | CANCELLED
+    qr_payload = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    paid_at = Column(DateTime, nullable=True)
 
-    items = relationship("OrderItem", back_populates="order")
-    payments = relationship("Payment", back_populates="order")
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+
 
 class OrderItem(Base):
     __tablename__ = "order_items"
 
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(Integer, ForeignKey("orders.id"))
-    product_id = Column(Integer, ForeignKey("products.id"))
     slot_code = Column(String)
-    quantity = Column(Integer, default=1)
-    unit_price = Column(Float)
+    product_name = Column(String, default="")
+    qty = Column(Integer, default=1)
+    unit_price = Column(Float, default=0.0)
 
     order = relationship("Order", back_populates="items")
-
-class Payment(Base):
-    __tablename__ = "payments"
-
-    id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id"))
-    amount = Column(Float)
-    status = Column(String, default="PENDING")
-    transaction_ref = Column(String, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    order = relationship("Order", back_populates="payments")

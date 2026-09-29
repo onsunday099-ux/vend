@@ -34,6 +34,12 @@ class ApiService {
         if (decoded is List) {
           return decoded.map((item) => SlotModel.fromJson(item)).toList();
         }
+        // backend push: {"type": "stock_update", "slots": [...]}
+        if (decoded is Map && decoded['slots'] is List) {
+          return (decoded['slots'] as List)
+              .map((item) => SlotModel.fromJson(item))
+              .toList();
+        }
       }
     } catch (e) {
       debugPrint('Error parsing stock push: $e');
@@ -74,7 +80,21 @@ class ApiService {
       final data = jsonDecode(utf8.decode(res.bodyBytes));
       return OrderModel.fromJson(data);
     }
-    throw Exception('เกิดข้อผิดพลาดในการสั่งซื้อ: ${res.body}');
+    String detail = res.body;
+    try {
+      final j = jsonDecode(utf8.decode(res.bodyBytes));
+      if (j is Map && j['detail'] != null) detail = j['detail'].toString();
+    } catch (_) {}
+    throw Exception(detail);
+  }
+
+  // ยกเลิกออเดอร์ (เคลียร์ยอดที่ตัวรับเงินด้วย)
+  static Future<void> cancelOrder(String orderNo) async {
+    try {
+      await http.post(Uri.parse('$baseUrl/api/orders/$orderNo/cancel'));
+    } catch (e) {
+      debugPrint('cancelOrder error: $e');
+    }
   }
 
   // 5. ตรวจสอบสถานะ Order (สำหรับ QR PromptPay Auto-Detect)
@@ -96,7 +116,7 @@ class ApiService {
     if (res.statusCode == 200) {
       return jsonDecode(utf8.decode(res.bodyBytes));
     }
-    return {'status': 'SUCCESS', 'orderNo': orderNo};
+    return {'status': 'PENDING', 'orderNo': orderNo};
   }
 
   // ---------------- ส่วนเชื่อมต่อ Cash Middleware จริง ----------------

@@ -48,29 +48,12 @@ class SlotCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1. หัวการ์ด: รหัสช่อง (slotId) และสต็อกคงเหลือ (currentStock)
+              // 1. หัวการ์ด: สต็อกคงเหลือ (currentStock) / ป้ายในตะกร้า
               Padding(
                 padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: isOutOfStock
-                            ? Colors.grey.shade400
-                            : (isInCart ? AppColors.primary : Colors.grey.shade800),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        slot.slotId,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
                     // ป้ายสถานะ
                     if (isInCart)
                       Container(
